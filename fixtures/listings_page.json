@@ -1,0 +1,131 @@
+{
+  "total": 6,
+  "page": 1,
+  "page_size": 20,
+  "items": [
+    {
+      "id": "cl_8f3a1e",
+      "source": "avtoelon",
+      "source_url": "https://avtoelon.uz/a/show/7447315",
+      "category": "cars",
+      "title": "Chevrolet Cobalt, 2019",
+      "photo_url": "https://picsum.photos/seed/cobalt1/640/480",
+      "price_usd": 9200,
+      "price_uzs": 116840000,
+      "deal_score": 0.16,
+      "segment_median_usd": 11000,
+      "segment_sample_size": 47,
+      "city": "Ташкент",
+      "posted_at": "2026-08-22T09:14:00Z",
+      "flags": [
+        {
+          "code": "price_dropped",
+          "label": "Цену снизили: $10 500 → $9 200 за 14 дней",
+          "severity": "info",
+          "source": "price_history"
+        }
+      ]
+    },
+    {
+      "id": "cl_2b91cd",
+      "source": "olx",
+      "source_url": "https://www.olx.uz/d/obyavlenie/malibu-2-2020-ID.html",
+      "category": "cars",
+      "title": "Chevrolet Malibu 2, 2020",
+      "photo_url": "https://picsum.photos/seed/malibu1/640/480",
+      "price_usd": 18500,
+      "price_uzs": 234950000,
+      "deal_score": 0.22,
+      "segment_median_usd": 23700,
+      "segment_sample_size": 31,
+      "city": "Самарканд",
+      "posted_at": "2026-08-23T15:40:00Z",
+      "flags": [
+        {
+          "code": "accident_mentioned",
+          "label": "Упомянута небольшая царапина на бампере",
+          "severity": "warning",
+          "source": "text"
+        }
+      ]
+    },
+    {
+      "id": "cl_te9931",
+      "source": "telegram",
+      "source_url": "https://t.me/tashkent_avto_bozor/18342",
+      "category": "cars",
+      "title": "Nexia 3, 2018",
+      "photo_url": "https://picsum.photos/seed/nexia1/640/480",
+      "price_usd": 6100,
+      "price_uzs": 77470000,
+      "deal_score": 0.28,
+      "segment_median_usd": 8500,
+      "segment_sample_size": 62,
+      "city": "Ташкент",
+      "posted_at": "2026-08-24T06:02:00Z",
+      "flags": [
+        {
+          "code": "seller_reposts_often",
+          "label": "Похожий номер встречался ещё в 3 объявлениях (вероятно, перекуп)",
+          "severity": "info",
+          "source": "photo_heuristic"
+        }
+      ]
+    },
+    {
+      "id": "cl_4c17aa",
+      "source": "avtoelon",
+      "source_url": "https://avtoelon.uz/a/show/7061489",
+      "category": "cars",
+      "title": "Lacetti, 2012",
+      "photo_url": "https://picsum.photos/seed/lacetti1/640/480",
+      "price_usd": 7800,
+      "price_uzs": 99060000,
+      "deal_score": -0.05,
+      "segment_median_usd": 7400,
+      "segment_sample_size": 39,
+      "city": "Ташкент",
+      "posted_at": "2026-08-21T11:20:00Z",
+      "flags": []
+    },
+    {
+      "id": "cl_9d02fe",
+      "source": "olx",
+      "source_url": "https://www.olx.uz/d/obyavlenie/spark-2017-ID.html",
+      "category": "cars",
+      "title": "Spark, 2017",
+      "photo_url": "https://picsum.photos/seed/spark1/640/480",
+      "price_usd": 5300,
+      "price_uzs": 67310000,
+      "deal_score": 0.19,
+      "segment_median_usd": 6550,
+      "segment_sample_size": 54,
+      "city": "Фергана",
+      "posted_at": "2026-08-23T08:55:00Z",
+      "flags": [
+        {
+          "code": "not_customs_cleared",
+          "label": "Не растаможен",
+          "severity": "negative",
+          "source": "text"
+        }
+      ]
+    },
+    {
+      "id": "cl_6a55b3",
+      "source": "telegram",
+      "source_url": "https://t.me/uzcars_market/9021",
+      "category": "cars",
+      "title": "Damas, 2015",
+      "photo_url": "https://picsum.photos/seed/damas1/640/480",
+      "price_usd": 4100,
+      "price_uzs": 52070000,
+      "deal_score": 0.09,
+      "segment_median_usd": 4500,
+      "segment_sample_size": 28,
+      "city": "Наманган",
+      "posted_at": "2026-08-20T18:30:00Z",
+      "flags": []
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "cl_8f3a1e",
+  "source": "avtoelon",
+  "source_url": "https://avtoelon.uz/a/show/7447315",
+  "category": "cars",
+  "title": "Chevrolet Cobalt, 2019",
+  "photo_url": "https://picsum.photos/seed/cobalt1/640/480",
+  "price_usd": 9200,
+  "price_uzs": 116840000,
+  "deal_score": 0.16,
+  "segment_median_usd": 11000,
+  "segment_sample_size": 47,
+  "city": "Ташкент",
+  "posted_at": "2026-08-22T09:14:00Z",
+  "flags": [
+    {
+      "code": "price_dropped",
+      "label": "Цену снизили: $10 500 → $9 200 за 14 дней",
+      "severity": "info",
+      "source": "price_history"
+    }
+  ],
+  "attrs": {
+    "brand": "chevrolet",
+    "model": "cobalt",
+    "year": 2019,
+    "mileage_km": 78000,
+    "transmission": "automatic",
+    "position": 3,
+    "customs_cleared": true
+  },
+  "price_history": [
+    { "date": "2026-08-08", "price_usd": 10500 },
+    { "date": "2026-08-15", "price_usd": 9800 },
+    { "date": "2026-08-22", "price_usd": 9200 }
+  ],
+  "photos": [
+    "https://picsum.photos/seed/cobalt1/640/480",
+    "https://picsum.photos/seed/cobalt2/640/480",
+    "https://picsum.photos/seed/cobalt3/640/480"
+  ],
+  "description_raw": "Chevrolet Cobalt 2019 г., позиция 3, полный. Пробег 78000 км, один хозяин, растаможен. Небольшая вмятина на двери, не мешает. Торг уместен."
+}

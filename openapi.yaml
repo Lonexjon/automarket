@@ -1,0 +1,237 @@
+openapi: 3.1.0
+info:
+  title: Automarket API
+  description: >
+    Агрегатор объявлений (старт — авто) по Узбекистану. Собирает объявления
+    с нескольких источников (OLX, Avtoelon, Telegram-каналы), нормализует и
+    считает deal_score — насколько цена ниже/выше рыночной для сегмента.
+    Контента источников не хостит — только карточка + ссылка на оригинал.
+  version: 0.1.0
+
+servers:
+  - url: https://api.automarket.uz/v1
+    description: production (пока не существует, для контракта)
+  - url: http://localhost:8000/v1
+    description: local dev
+
+tags:
+  - name: listings
+    description: Объявления
+  - name: alerts
+    description: Подписки на алерты (для Telegram-бота)
+
+paths:
+  /listings:
+    get:
+      tags: [listings]
+      summary: Список объявлений с фильтрами и сортировкой по deal_score
+      parameters:
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/Category' }
+        - name: brand
+          in: query
+          schema: { type: string }
+          example: chevrolet
+        - name: model
+          in: query
+          schema: { type: string }
+          example: cobalt
+        - name: city
+          in: query
+          schema: { type: string }
+          example: tashkent
+        - name: price_min
+          in: query
+          schema: { type: number }
+        - name: price_max
+          in: query
+          schema: { type: number }
+        - name: year_min
+          in: query
+          schema: { type: integer }
+        - name: year_max
+          in: query
+          schema: { type: integer }
+        - name: deal_min
+          in: query
+          description: минимальный deal_score (0.2 = на 20% ниже рыночной)
+          schema: { type: number }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [deal_score_desc, price_asc, price_desc, posted_at_desc]
+            default: deal_score_desc
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  page: { type: integer }
+                  page_size: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ListingSummary' }
+
+  /listings/{id}:
+    get:
+      tags: [listings]
+      summary: Полная карточка объявления
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingDetail' }
+        '404':
+          description: Not found
+
+  /alerts:
+    post:
+      tags: [alerts]
+      summary: Создать подписку на алерты (вызывается ботом)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Alert' }
+
+components:
+  schemas:
+    Category:
+      type: string
+      enum: [cars, real_estate, electronics]
+
+    DealFlag:
+      type: object
+      description: >
+        Признак, влияющий на оценку. source различает "из текста продавца"
+        (надёжно) и "по фото/эвристике" (предположение) — фронт обязан
+        показывать их по-разному.
+      properties:
+        code:
+          type: string
+          example: accident_mentioned
+        label:
+          type: string
+          example: "Упомянуто ДТП в тексте"
+        severity:
+          type: string
+          enum: [info, warning, negative]
+        source:
+          type: string
+          enum: [text, photo_heuristic, price_history]
+
+    PriceHistoryPoint:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        price_usd: { type: number }
+
+    ListingSummary:
+      type: object
+      required: [id, source, category, title, price_usd, city, url, deal_score, posted_at]
+      properties:
+        id: { type: string, example: "cl_8f3a1e" }
+        source:
+          type: string
+          enum: [olx, avtoelon, telegram]
+        source_url:
+          type: string
+          format: uri
+          example: "https://avtoelon.uz/a/show/7447315"
+        category: { $ref: '#/components/schemas/Category' }
+        title: { type: string, example: "Chevrolet Cobalt, 2019" }
+        photo_url: { type: string, format: uri, nullable: true }
+        price_usd: { type: number, example: 9200 }
+        price_uzs: { type: number, example: 116840000 }
+        deal_score:
+          type: number
+          description: >
+            (медиана сегмента - цена) / медиана. 0.2 = на 20% дешевле рынка,
+            отрицательное = дороже рынка.
+          example: 0.16
+        segment_median_usd:
+          type: number
+          description: медиана цены по сегменту, на основе которой посчитан deal_score
+          example: 11000
+        segment_sample_size:
+          type: integer
+          description: сколько объявлений вошло в расчёт медианы сегмента
+          example: 47
+        city: { type: string, example: "Ташкент" }
+        posted_at: { type: string, format: date-time }
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/DealFlag' }
+
+    ListingDetail:
+      allOf:
+        - $ref: '#/components/schemas/ListingSummary'
+        - type: object
+          properties:
+            attrs:
+              type: object
+              description: атрибуты, специфичные для категории (для cars — ниже)
+              properties:
+                brand: { type: string, example: chevrolet }
+                model: { type: string, example: cobalt }
+                year: { type: integer, example: 2019 }
+                mileage_km: { type: integer, example: 78000 }
+                transmission: { type: string, enum: [automatic, manual], nullable: true }
+                position: { type: integer, nullable: true, description: "комплектация/позиция" }
+                customs_cleared: { type: boolean, nullable: true }
+            price_history:
+              type: array
+              items: { $ref: '#/components/schemas/PriceHistoryPoint' }
+            photos:
+              type: array
+              items: { type: string, format: uri }
+            description_raw:
+              type: string
+              description: исходный текст объявления как есть
+
+    AlertCreate:
+      type: object
+      required: [telegram_user_id, filters]
+      properties:
+        telegram_user_id: { type: integer }
+        filters:
+          type: object
+          properties:
+            category: { $ref: '#/components/schemas/Category' }
+            brand: { type: string }
+            model: { type: string }
+            city: { type: string }
+            price_max: { type: number }
+            deal_min: { type: number, default: 0.15 }
+
+    Alert:
+      allOf:
+        - $ref: '#/components/schemas/AlertCreate'
+        - type: object
+          properties:
+            id: { type: string }
+            created_at: { type: string, format: date-time }
