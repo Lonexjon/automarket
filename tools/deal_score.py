@@ -33,6 +33,12 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 DB_PATH = os.path.join(ROOT, "automarket.db")
 SCHEMA_PATH = os.path.join(ROOT, "db", "schema.sql")
 
+# Ниже этого regex почти наверняка зацепил не цену машины, а число из
+# текста про рассрочку/предоплату/что-то ещё -- легковушка в Узбекистане
+# дешевле не продаётся. Такие price_usd не участвуют ни в медиане, ни
+# в собственном deal_score.
+MIN_PLAUSIBLE_PRICE_USD = 1000
+
 
 def ensure_schema(con: sqlite3.Connection) -> None:
     for col, decl in [
@@ -63,7 +69,7 @@ def main():
 
     segment_prices = defaultdict(list)
     for _, brand, year, price_usd in rows:
-        if price_usd:
+        if price_usd and price_usd >= MIN_PLAUSIBLE_PRICE_USD:
             segment_prices[(brand, year)].append(price_usd)
 
     medians = {
@@ -77,7 +83,7 @@ def main():
         median = medians.get(segment)
         sample_size = len(segment_prices.get(segment, []))
 
-        if median is None or not price_usd:
+        if median is None or not price_usd or price_usd < MIN_PLAUSIBLE_PRICE_USD:
             deal_score = None
         else:
             deal_score = round((median - price_usd) / median * 100, 1)
