@@ -24,14 +24,15 @@ SCHEMA_PATH = os.path.join(ROOT, "db", "schema.sql")
 
 
 def ensure_schema(con: sqlite3.Connection) -> None:
-    with open(SCHEMA_PATH) as f:
-        con.executescript(f.read())
-    con.commit()
     try:
         con.execute("ALTER TABLE listings ADD COLUMN duplicate_of TEXT REFERENCES listings(id)")
         con.commit()
     except sqlite3.OperationalError:
-        pass  # колонка уже есть
+        pass  # колонки ещё нет (свежая база) или уже есть -- оба случая ок
+
+    with open(SCHEMA_PATH) as f:
+        con.executescript(f.read())
+    con.commit()
 
 
 def main():
