@@ -19,6 +19,7 @@
   python parsers/regex_extract.py 50         # ограничить (тест)
 """
 import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -56,6 +57,41 @@ HASHTAG_RE = re.compile(r"#([A-Za-zА-Яа-яЎўҚқҒғҲҳ]+)")
 
 TRANSMISSION_AUTO_RE = re.compile(r"\bavtomat\b|\bавтомат\b", re.I)
 TRANSMISSION_MANUAL_RE = re.compile(r"\bmexanika\b|\bмеханика\b|\bмех\.?\b", re.I)
+
+# Флаги повреждений/аварий -- только по явным упоминаниям в тексте
+# (source="text" в терминах openapi.yaml). Отсутствие совпадения НЕ значит
+# "не битая" -- значит просто "не упомянуто", это не подтверждение чистоты.
+FLAG_PATTERNS = [
+    ("accident_mentioned", "Упоминается авария/ДТП", "warning", re.compile(
+        r"avariya|авари|после\s*дтп|\bдтп\b", re.I)),
+    ("painted_mentioned", "Упоминается покраска/крашеные элементы", "warning", re.compile(
+        r"boyalgan|бўялган|крашен|перекраш", re.I)),
+    ("hit_mentioned", "Упоминается удар/повреждение кузова", "warning", re.compile(
+        r"urilgan|урилган|\bбит[аоы]\b|битый", re.I)),
+    ("needs_repair_mentioned", "Упоминается требуемый ремонт", "warning", re.compile(
+        r"ta'mirtalab|ремонт\s*треб|требует\s*ремонта", re.I)),
+]
+
+# Отрицание рядом со словом переворачивает смысл ("avariyaga uchramagan" =
+# НЕ была в аварии, "не крашена" = НЕ крашена) -- если рядом с совпадением
+# есть один из этих маркеров, флаг не ставим вообще (не знаем точно, что
+# там было, но точно не positive-утверждение о повреждении).
+NEGATION_RE = re.compile(
+    r"\bне\s|\bбез\s|uchramagan|bo'?lmagan|bulmagan|emas\b|yo'?q\b|siz\b", re.I
+)
+NEGATION_WINDOW = 20  # символов до/после совпадения, где ищем отрицание
+
+
+def detect_flags(text: str) -> list[dict]:
+    flags = []
+    for code, label, severity, pattern in FLAG_PATTERNS:
+        for m in pattern.finditer(text):
+            window = text[max(0, m.start() - NEGATION_WINDOW): m.end() + NEGATION_WINDOW]
+            if NEGATION_RE.search(window):
+                continue  # отрицание рядом -- пропускаем это совпадение
+            flags.append({"code": code, "label": label, "severity": severity})
+            break  # одного совпадения достаточно, дальше не ищем по этому паттерну
+    return flags
 
 KNOWN_BRANDS = {
     "chevrolet", "kia", "hyundai", "daewoo", "nexia", "cobalt", "malibu",
@@ -125,6 +161,12 @@ def try_extract(text: str) -> dict | None:
 
 
 def ensure_schema(con: sqlite3.Connection) -> None:
+    try:
+        con.execute("ALTER TABLE listings ADD COLUMN flags TEXT")
+    except sqlite3.OperationalError:
+        pass  # уже есть, или таблицы ещё нет (создастся ниже)
+    con.commit()
+
     with open(SCHEMA_PATH) as f:
         con.executescript(f.read())
     con.commit()
@@ -162,21 +204,23 @@ def main(limit: int | None):
         source_id = f"{channel}:{message_id}"
         source_url = f"https://t.me/{channel}/{message_id}"
 
+        flags = detect_flags(text)
+
         con.execute(
             """INSERT INTO listings (
                 id, source, source_id, source_url, category, title,
                 price_usd, price_uzs, brand, model, year, mileage_km,
-                transmission, description_raw, phone_hash,
+                transmission, description_raw, flags, phone_hash,
                 posted_at, first_seen_at, last_seen_at
-            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO NOTHING""",
             (
                 listing_id, source_id, source_url,
                 f"{data.get('brand') or ''} {data.get('year') or ''}".strip() or "Без названия",
                 data["price_usd"] or None, data["price_uzs"] or None,
                 data["brand"], data["model"], data["year"], data["mileage_km"],
-                data["transmission"], text, phone_hash(data["phone"]),
-                posted_at, now, now,
+                data["transmission"], text, json.dumps(flags, ensure_ascii=False) if flags else None,
+                phone_hash(data["phone"]), posted_at, now, now,
             ),
         )
         con.commit()

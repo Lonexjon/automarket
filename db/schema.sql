@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS listings (
 
     description_raw TEXT,
     photo_urls      TEXT,                  -- JSON-массив строк
+    flags           TEXT,                  -- JSON-массив {code, label, severity}, напр. авария/крашена/после ДТП
 
     phone_hash      TEXT,                  -- sha256 телефона, для дедупа; сырой телефон не храним
     duplicate_of    TEXT REFERENCES listings(id),  -- NULL = каноническое объявление; иначе id самого раннего дубля (тот же phone_hash+brand+year+price+mileage, репост в другой канал)
