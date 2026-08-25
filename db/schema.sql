@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS listings (
     phone_hash      TEXT,                  -- sha256 телефона, для дедупа; сырой телефон не храним
     duplicate_of    TEXT REFERENCES listings(id),  -- NULL = каноническое объявление; иначе id самого раннего дубля (тот же phone_hash+brand+year+price+mileage, репост в другой канал)
 
+    deal_score          REAL,              -- % ниже медианы сегмента; положительное = дешевле рынка, отрицательное = дороже
+    segment_median_usd  REAL,              -- медиана price_usd по сегменту (brand+year) на момент последнего расчёта
+    segment_sample_size INTEGER,           -- сколько объявлений вошло в медиану -- мало объявлений = не доверять deal_score
+
     posted_at       TEXT,                  -- ISO8601, дата публикации по данным источника
     first_seen_at   TEXT NOT NULL,         -- когда мы впервые увидели
     last_seen_at    TEXT NOT NULL,         -- когда видели последний раз (жива ли ещё)
