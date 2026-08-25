@@ -12,7 +12,7 @@ import sqlite3
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "parsers"))
-from regex_extract import detect_flags  # noqa: E402
+from regex_extract import detect_flags, ensure_schema  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DB_PATH = os.path.join(ROOT, "automarket.db")
@@ -20,6 +20,7 @@ DB_PATH = os.path.join(ROOT, "automarket.db")
 
 def main():
     con = sqlite3.connect(DB_PATH)
+    ensure_schema(con)
     rows = con.execute(
         """SELECT id, description_raw FROM listings
            WHERE flags IS NULL AND description_raw IS NOT NULL AND description_raw != ''"""
