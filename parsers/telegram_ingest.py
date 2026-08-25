@@ -26,6 +26,7 @@ SESSION_PATH = os.path.join(ROOT, "automarket_session")
 DB_PATH = os.path.join(ROOT, "automarket.db")
 
 CHANNELS = [
+    "moshina_bozorim",
     "vodiybozor_mashinabozor", "rasmiyavtobozor", "Vodiymashina_Toshkent",
     "xolis_mashina_bozor", "inamarka_mashinalar", "andijon_moshina_elonlarimi",
     "vodiy_bozori_avtoelon", "moshina_elonlarim", "qarshi_mashinalarim",
