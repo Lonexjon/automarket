@@ -25,7 +25,14 @@ load_dotenv()
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DB_PATH = os.path.join(ROOT, "automarket.db")
+SCHEMA_PATH = os.path.join(ROOT, "db", "schema.sql")
 MODEL = "claude-haiku-4-5-20251001"
+
+
+def ensure_schema(con: sqlite3.Connection) -> None:
+    with open(SCHEMA_PATH) as f:
+        con.executescript(f.read())
+    con.commit()
 
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -117,6 +124,7 @@ def fetch_unprocessed(con: sqlite3.Connection, limit: int | None):
 
 def main(limit: int | None):
     con = sqlite3.connect(DB_PATH)
+    ensure_schema(con)
     rows = fetch_unprocessed(con, limit)
     print(f"К разбору: {len(rows)} постов\n")
 
