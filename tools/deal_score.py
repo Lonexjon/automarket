@@ -35,9 +35,16 @@ SCHEMA_PATH = os.path.join(ROOT, "db", "schema.sql")
 
 # Ниже этого regex почти наверняка зацепил не цену машины, а число из
 # текста про рассрочку/предоплату/что-то ещё -- легковушка в Узбекистане
-# дешевле не продаётся. Такие price_usd не участвуют ни в медиане, ни
-# в собственном deal_score.
+# дешевле не продаётся. Абсолютный порог ловит только самые грубые случаи
+# ("$100" вместо цены) -- он никогда не покроет всё (рассрочка тоже может
+# начинаться от $1500), поэтому дальше есть ещё относительный фильтр.
 MIN_PLAUSIBLE_PRICE_USD = 1000
+
+# Если цена меньше этой доли от медианы своего сегмента -- она статистически
+# подозрительна независимо от суммы (скорее всего regex зацепил не то число).
+# Такую цену не учитываем в медиане и не даём ей deal_score -- честно
+# показываем "не знаем", а не подсовываем вводящий в заблуждение % скидки.
+OUTLIER_RATIO = 0.35
 
 
 def ensure_schema(con: sqlite3.Connection) -> None:
@@ -67,10 +74,29 @@ def main():
              AND removed_at IS NULL"""
     ).fetchall()
 
-    segment_prices = defaultdict(list)
+    # Первый проход: грубая медиана по сегменту, только чтобы отсеять
+    # относительные выбросы -- сама по себе она объявлениям не присваивается.
+    raw_prices = defaultdict(list)
     for _, brand, year, price_usd in rows:
         if price_usd and price_usd >= MIN_PLAUSIBLE_PRICE_USD:
-            segment_prices[(brand, year)].append(price_usd)
+            raw_prices[(brand, year)].append(price_usd)
+    raw_medians = {
+        segment: statistics.median(prices) for segment, prices in raw_prices.items()
+    }
+
+    # Второй проход: убираем цены дальше OUTLIER_RATIO от грубой медианы,
+    # медиана на чистых данных -- она и попадает в базу как segment_median_usd.
+    segment_prices = defaultdict(list)
+    for _, brand, year, price_usd in rows:
+        segment = (brand, year)
+        raw_median = raw_medians.get(segment)
+        if (
+            price_usd
+            and price_usd >= MIN_PLAUSIBLE_PRICE_USD
+            and raw_median
+            and price_usd >= raw_median * OUTLIER_RATIO
+        ):
+            segment_prices[segment].append(price_usd)
 
     medians = {
         segment: statistics.median(prices)
@@ -82,8 +108,9 @@ def main():
         segment = (brand, year)
         median = medians.get(segment)
         sample_size = len(segment_prices.get(segment, []))
+        is_outlier = not price_usd or not median or price_usd < median * OUTLIER_RATIO
 
-        if median is None or not price_usd or price_usd < MIN_PLAUSIBLE_PRICE_USD:
+        if median is None or not price_usd or price_usd < MIN_PLAUSIBLE_PRICE_USD or is_outlier:
             deal_score = None
         else:
             deal_score = round((median - price_usd) / median * 100, 1)
