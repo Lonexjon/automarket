@@ -8,10 +8,18 @@
   <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));</script>
 </head>
 <body>
-  <header class="top">
-    <h1>Automarket</h1>
-    <button class="theme-toggle" id="themeToggle">☀️/🌙</button>
-  </header>
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="brand">
+        <div class="brand-mark">🚗</div>
+        <div>
+          <h1>Automarket</h1>
+          <p>Собираем объявления и находим цены ниже рынка</p>
+        </div>
+      </div>
+      <button class="theme-toggle" id="themeToggle">☀️/🌙</button>
+    </div>
+  </div>
 
   <main class="container">
     <div class="filters">
@@ -33,6 +41,10 @@
       <span id="pageLabel"></span>
       <button id="nextPage">Вперёд →</button>
     </div>
+
+    <footer class="site-footer">
+      Мы не публикуем контакты продавцов и не храним чужие фото — только анализ и ссылка на оригинал.
+    </footer>
   </main>
 
   <script src="common.js"></script>

@@ -82,7 +82,7 @@ async function loadListings() {
 
     if (data.items.length === 0) {
       els.status.textContent = "";
-      els.list.innerHTML = '<div class="empty-state">Ничего не найдено по этим фильтрам</div>';
+      els.list.innerHTML = '<div class="empty-state"><span class="big-emoji">🔍</span>Ничего не найдено по этим фильтрам</div>';
       return;
     }
 
@@ -96,7 +96,7 @@ async function loadListings() {
     els.nextPage.disabled = state.page >= totalPages;
   } catch (e) {
     els.status.textContent = "";
-    els.list.innerHTML = '<div class="error-state">Не удалось загрузить объявления. Попробуйте обновить страницу.</div>';
+    els.list.innerHTML = '<div class="error-state"><span class="big-emoji">⚠️</span>Не удалось загрузить объявления. Попробуйте обновить страницу.</div>';
   }
 }
 

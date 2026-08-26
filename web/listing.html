@@ -17,18 +17,27 @@
     .flag-item .src-text { color: var(--text-muted); }
     .flag-item .src-heuristic { color: var(--text-muted); opacity: 0.7; }
     .desc-raw { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; font-size: 13px; color: var(--text-muted); }
-    .cta { display: block; text-align: center; background: var(--accent); color: #fff; text-decoration: none; padding: 14px; border-radius: 12px; font-weight: 600; margin: 20px 0; }
-    .back-link { color: var(--text-muted); text-decoration: none; font-size: 13px; }
+    .cta {
+      display: block; text-align: center;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff; text-decoration: none; padding: 15px; border-radius: 12px;
+      font-weight: 650; margin: 20px 0; box-shadow: var(--shadow);
+    }
+    .cta:hover { box-shadow: var(--shadow-hover); }
+    .back-link { color: rgba(255,255,255,0.9); text-decoration: none; font-size: 13px; }
+    h1 { font-size: 20px; letter-spacing: -0.01em; margin: 0 0 4px; }
   </style>
   <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));</script>
 </head>
 <body>
-  <header class="top">
-    <a class="back-link" href="index.html">← Все объявления</a>
-    <button class="theme-toggle" id="themeToggle">☀️/🌙</button>
-  </header>
+  <div class="hero">
+    <div class="hero-inner">
+      <a class="back-link" href="index.html">← Все объявления</a>
+      <button class="theme-toggle" id="themeToggle">☀️/🌙</button>
+    </div>
+  </div>
 
-  <main class="container" id="content">
+  <main class="container" id="content" style="margin-top: 20px">
     <div class="status-line">Загрузка…</div>
   </main>
 

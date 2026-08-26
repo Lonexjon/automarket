@@ -38,13 +38,16 @@ def get_con() -> sqlite3.Connection:
 
 def to_summary(row: sqlite3.Row) -> dict:
     flags = json.loads(row["flags"]) if row["flags"] else []
+    # photo_urls хранит прямые ссылки на CDN источника (Telegram/Avtoelon/OLX),
+    # мы их не скачиваем и не хостим -- см. tools/fetch_telegram_photos.py.
+    photo_urls = json.loads(row["photo_urls"]) if row["photo_urls"] else []
     return {
         "id": row["id"],
         "source": row["source"],
         "source_url": row["source_url"],
         "category": row["category"],
         "title": row["title"],
-        "photo_url": None,  # фото не хостим -- см. README/CLAUDE.md, только ссылка на оригинал
+        "photo_url": photo_urls[0] if photo_urls else None,
         "price_usd": row["price_usd"],
         "price_uzs": row["price_uzs"],
         "deal_score": row["deal_score"] / 100 if row["deal_score"] is not None else None,
@@ -68,7 +71,7 @@ def to_detail(row: sqlite3.Row) -> dict:
         "customs_cleared": bool(row["customs_cleared"]) if row["customs_cleared"] is not None else None,
     }
     summary["price_history"] = []  # price_history пока не заполняется -- см. TODO.md
-    summary["photos"] = []  # фото не хостим
+    summary["photos"] = json.loads(row["photo_urls"]) if row["photo_urls"] else []
     summary["description_raw"] = row["description_raw"]
     return summary
 
