@@ -38,8 +38,12 @@ async def main():
         await page.goto(URL, wait_until="networkidle", timeout=30_000)
         await page.wait_for_timeout(1000)
 
+        NOISE = ("analytics", "yandex.ru", "kcdn.online", "google", "gdpr", "mc.yandex")
+
         print(f"Всего сетевых ответов: {len(responses)}\n")
         for status, rtype, url in responses:
+            if any(n in url for n in NOISE):
+                continue  # аналитика/трекинг -- не относится к делу
             marker = "  <-- ПОДОЗРИТЕЛЬНО" if status >= 400 else ""
             if rtype in ("xhr", "fetch", "document") or status >= 400:
                 print(f"{status} [{rtype}] {url}{marker}")
