@@ -95,7 +95,7 @@ def detect_flags(text: str) -> list[dict]:
             window = text[max(0, m.start() - NEGATION_WINDOW): m.end() + NEGATION_WINDOW]
             if NEGATION_RE.search(window):
                 continue  # отрицание рядом -- пропускаем это совпадение
-            flags.append({"code": code, "label": label, "severity": severity})
+            flags.append({"code": code, "label": label, "severity": severity, "source": "text"})
             break  # одного совпадения достаточно, дальше не ищем по этому паттерну
     return flags
 

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Automarket — выгодные объявления по машинам в Узбекистане</title>
+  <link rel="stylesheet" href="style.css" />
+  <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));</script>
+</head>
+<body>
+  <header class="top">
+    <h1>Automarket</h1>
+    <button class="theme-toggle" id="themeToggle">☀️/🌙</button>
+  </header>
+
+  <main class="container">
+    <div class="filters">
+      <select id="fBrand"><option value="">Марка: любая</option></select>
+      <select id="fCity"><option value="">Город: любой</option></select>
+      <input id="fPriceMax" type="number" placeholder="Цена до, $" />
+      <select id="fSort">
+        <option value="deal_score_desc">Лучшая цена</option>
+        <option value="price_asc">Дешевле</option>
+        <option value="price_desc">Дороже</option>
+        <option value="posted_at_desc">Свежие</option>
+      </select>
+    </div>
+
+    <div class="status-line" id="statusLine">Загрузка…</div>
+    <div class="card-list" id="cardList"></div>
+    <div class="pager" id="pager" style="display:none">
+      <button id="prevPage">← Назад</button>
+      <span id="pageLabel"></span>
+      <button id="nextPage">Вперёд →</button>
+    </div>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

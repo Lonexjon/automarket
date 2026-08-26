@@ -1,0 +1,219 @@
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --text: #14161a;
+  --text-muted: #666b73;
+  --border: #e4e6eb;
+  --accent: #2563eb;
+  --good: #15803d;
+  --good-bg: #dcfce7;
+  --ok-bg: #fef9c3;
+  --ok-text: #854d0e;
+  --bad: #b91c1c;
+  --bad-bg: #fee2e2;
+  --warning-bg: #fff1e6;
+  --warning-text: #9a4a10;
+}
+
+[data-theme="dark"] {
+  --bg: #101216;
+  --surface: #1a1d23;
+  --text: #eceef1;
+  --text-muted: #9198a3;
+  --border: #2a2e36;
+  --accent: #5b8dfd;
+  --good: #4ade80;
+  --good-bg: #103a20;
+  --ok-bg: #3a3410;
+  --ok-text: #f5da6a;
+  --bad: #f87171;
+  --bad-bg: #3a1616;
+  --warning-bg: #3a2410;
+  --warning-text: #f0a85e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+a { color: inherit; }
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 16px 40px;
+}
+
+header.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+header.top h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.theme-toggle {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filters select, .filters input {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  flex: 1 1 auto;
+  min-width: 90px;
+}
+
+.status-line {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.card:hover { border-color: var(--accent); }
+
+.card-photo {
+  width: 96px;
+  height: 72px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.card-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+.card-body { flex: 1; min-width: 0; }
+
+.card-title {
+  font-weight: 600;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-meta {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.card-price {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.card-price .uzs {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.deal-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.deal-great { background: var(--good-bg); color: var(--good); }
+.deal-good { background: var(--ok-bg); color: var(--ok-text); }
+.deal-market { background: var(--border); color: var(--text-muted); }
+.deal-over { background: var(--bad-bg); color: var(--bad); }
+
+.source-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.flag-tag {
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 2px 7px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.empty-state, .error-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 16px;
+}
+
+.pager {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.pager button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.pager button:disabled { opacity: 0.4; cursor: default; }

@@ -14,9 +14,11 @@ import sqlite3
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DB_PATH = os.path.join(ROOT, "automarket.db")
+WEB_DIR = os.path.join(ROOT, "web")
 
 app = FastAPI(title="Automarket API", version="0.1.0")
 
@@ -135,6 +137,26 @@ def list_listings(
     }
 
 
+@app.get("/v1/facets")
+def facets(category: str = "cars"):
+    """Список различающихся brand/city среди активных объявлений -- для фильтров на фронте."""
+    con = get_con()
+    brands = con.execute(
+        """SELECT DISTINCT brand FROM listings
+           WHERE duplicate_of IS NULL AND removed_at IS NULL AND category = ? AND brand IS NOT NULL
+           ORDER BY brand""",
+        (category,),
+    ).fetchall()
+    cities = con.execute(
+        """SELECT DISTINCT city FROM listings
+           WHERE duplicate_of IS NULL AND removed_at IS NULL AND category = ? AND city IS NOT NULL
+           ORDER BY city""",
+        (category,),
+    ).fetchall()
+    con.close()
+    return {"brands": [r["brand"] for r in brands], "cities": [r["city"] for r in cities]}
+
+
 @app.get("/v1/listings/{listing_id}")
 def get_listing(listing_id: str):
     con = get_con()
@@ -145,3 +167,7 @@ def get_listing(listing_id: str):
         raise HTTPException(status_code=404, detail="Not found")
 
     return to_detail(row)
+
+
+# смонтировано последним -- маршруты /v1/... объявлены выше и матчатся раньше
+app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
