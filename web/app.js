@@ -34,12 +34,15 @@ function cardHtml(item) {
     ? `<img src="${item.photo_url}" alt="" loading="lazy" />`
     : "фото по ссылке";
 
+  const specs = [item.year, item.mileage_km ? `${item.mileage_km.toLocaleString("ru-RU")} км` : null]
+    .filter(Boolean).join(" · ");
+
   return `
     <a class="card" href="listing.html?id=${encodeURIComponent(item.id)}">
       <div class="card-photo">${photo}</div>
       <div class="card-body">
         <p class="card-title">${item.title || "Без названия"}</p>
-        <p class="card-meta">${item.city || "Город не указан"} · ${timeAgo(item.posted_at)}</p>
+        <p class="card-meta">${[item.city, specs].filter(Boolean).join(" · ") || "—"} · ${timeAgo(item.posted_at)}</p>
         <p class="card-price">${formatPrice(item.price_usd, item.price_uzs)}</p>
         <div class="row">
           <span class="deal-badge ${badge.cls}">${badge.text}</span>
@@ -49,6 +52,19 @@ function cardHtml(item) {
       </div>
     </a>
   `;
+}
+
+function skeletonHtml(n) {
+  return Array.from({ length: n }, () => `
+    <div class="card skeleton">
+      <div class="card-photo skeleton-block"></div>
+      <div class="card-body">
+        <div class="skeleton-line" style="width:70%"></div>
+        <div class="skeleton-line" style="width:45%"></div>
+        <div class="skeleton-line" style="width:35%;height:18px;margin-top:8px"></div>
+      </div>
+    </div>
+  `).join("");
 }
 
 async function loadFacets() {
@@ -72,8 +88,8 @@ async function loadFacets() {
 }
 
 async function loadListings() {
-  els.status.textContent = "Загрузка…";
-  els.list.innerHTML = "";
+  els.status.textContent = "";
+  els.list.innerHTML = skeletonHtml(state.pageSize > 6 ? 6 : state.pageSize);
   els.pager.style.display = "none";
 
   try {
@@ -105,5 +121,18 @@ els.priceMax.addEventListener("change", () => { state.page = 1; loadListings(); 
 els.prevPage.addEventListener("click", () => { state.page -= 1; loadListings(); });
 els.nextPage.addEventListener("click", () => { state.page += 1; loadListings(); });
 
+async function loadStats() {
+  try {
+    const data = await apiGet("/v1/stats");
+    const heroTagline = document.getElementById("heroTagline");
+    if (heroTagline && data.total) {
+      heroTagline.textContent = `${data.total.toLocaleString("ru-RU")} объявлений · обновляется каждые 6 часов`;
+    }
+  } catch (e) {
+    // не критично, дефолтный текст в шапке уже есть
+  }
+}
+
+loadStats();
 loadFacets();
 loadListings();

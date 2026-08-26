@@ -286,6 +286,23 @@ a { color: inherit; }
 .pager button:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
 .pager span { color: var(--text-muted); font-size: 13px; }
 
+/* --- скелетон-загрузка --- */
+.skeleton { pointer-events: none; }
+
+.skeleton-block, .skeleton-line {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: 6px;
+}
+
+.skeleton-line { height: 13px; margin-bottom: 8px; }
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
 footer.site-footer {
   text-align: center;
   color: var(--text-muted);

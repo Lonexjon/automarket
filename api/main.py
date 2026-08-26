@@ -50,6 +50,8 @@ def to_summary(row: sqlite3.Row) -> dict:
         "photo_url": photo_urls[0] if photo_urls else None,
         "price_usd": row["price_usd"],
         "price_uzs": row["price_uzs"],
+        "year": row["year"],
+        "mileage_km": row["mileage_km"],
         "deal_score": row["deal_score"] / 100 if row["deal_score"] is not None else None,
         "segment_median_usd": row["segment_median_usd"],
         "segment_sample_size": row["segment_sample_size"],
@@ -138,6 +140,19 @@ def list_listings(
         "page_size": page_size,
         "items": [to_summary(r) for r in rows],
     }
+
+
+@app.get("/v1/stats")
+def stats(category: str = "cars"):
+    """Лёгкая сводка для шапки сайта -- сколько объявлений, когда последний раз обновлялись."""
+    con = get_con()
+    row = con.execute(
+        """SELECT COUNT(*) total, MAX(first_seen_at) last_seen FROM listings
+           WHERE duplicate_of IS NULL AND removed_at IS NULL AND category = ?""",
+        (category,),
+    ).fetchone()
+    con.close()
+    return {"total": row["total"], "last_updated_at": row["last_seen"]}
 
 
 @app.get("/v1/facets")
