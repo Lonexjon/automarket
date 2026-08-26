@@ -4,9 +4,14 @@
 LLM-экстрактор (текст -> {brand, model, year, price, ...}) это отдельный
 следующий шаг, тут только сбор и дедуп по (channel, message_id).
 
+Инкрементально: для канала, который уже когда-то собирали, тянем только
+посты НОВЕЕ самого большого уже сохранённого message_id (min_id в Telethon) --
+не важно, 5 их за день вышло или 200, лишнего не перекачиваем. Для канала,
+которого в базе ещё нет, берём стартовый снимок в INITIAL_LIMIT постов.
+
 Использование:
-  python parsers/telegram_ingest.py            # все каналы, по 50 постов
-  python parsers/telegram_ingest.py 200        # все каналы, по 200 постов
+  python parsers/telegram_ingest.py             # инкрементально (обычный режим)
+  python parsers/telegram_ingest.py 500         # свой стартовый лимит для новых каналов
 """
 import asyncio
 import os
@@ -56,16 +61,27 @@ def ensure_schema(con: sqlite3.Connection) -> None:
     con.commit()
 
 
-async def ingest_channel(client: TelegramClient, con: sqlite3.Connection, channel: str, limit: int) -> int:
+async def ingest_channel(client: TelegramClient, con: sqlite3.Connection, channel: str, initial_limit: int) -> int:
     try:
         entity = await client.get_entity(channel)
     except Exception as e:
         print(f"SKIP {channel}: не удалось открыть канал ({e})")
         return 0
 
+    last_seen_id = con.execute(
+        "SELECT MAX(message_id) FROM telegram_raw WHERE channel = ?", (channel,)
+    ).fetchone()[0]
+
+    if last_seen_id:
+        # уже собирали этот канал раньше -- только то, что новее
+        iter_kwargs = {"min_id": last_seen_id, "limit": None}
+    else:
+        # новый канал -- стартовый снимок
+        iter_kwargs = {"limit": initial_limit}
+
     saved = 0
     now = datetime.now(timezone.utc).isoformat()
-    async for message in client.iter_messages(entity, limit=limit):
+    async for message in client.iter_messages(entity, **iter_kwargs):
         if not message.text and not message.photo:
             continue  # служебные сообщения (закреп и т.п.)
         con.execute(
@@ -78,11 +94,12 @@ async def ingest_channel(client: TelegramClient, con: sqlite3.Connection, channe
         )
         saved += 1
     con.commit()
-    print(f"OK   {channel}: {saved} постов")
+    mode = "новые" if last_seen_id else "стартовый снимок"
+    print(f"OK   {channel}: {saved} постов ({mode})")
     return saved
 
 
-async def main(limit: int):
+async def main(initial_limit: int):
     con = sqlite3.connect(DB_PATH)
     ensure_schema(con)
 
@@ -91,7 +108,7 @@ async def main(limit: int):
 
     total = 0
     for channel in CHANNELS:
-        total += await ingest_channel(client, con, channel, limit)
+        total += await ingest_channel(client, con, channel, initial_limit)
         await asyncio.sleep(1.5)  # не долбим API Телеграма быстрее необходимого
 
     await client.disconnect()
@@ -100,5 +117,5 @@ async def main(limit: int):
 
 
 if __name__ == "__main__":
-    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 50
-    asyncio.run(main(limit))
+    initial_limit = int(sys.argv[1]) if len(sys.argv) > 1 else 200
+    asyncio.run(main(initial_limit))
