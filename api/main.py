@@ -20,7 +20,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 DB_PATH = os.path.join(ROOT, "automarket.db")
 WEB_DIR = os.path.join(ROOT, "web")
 
-app = FastAPI(title="Automarket API", version="0.1.0")
+app = FastAPI(title="Automarket API", version="0.1.1")  # деплой-тест через self-hosted runner
 
 SORT_COLUMNS = {
     "deal_score_desc": "deal_score DESC NULLS LAST",
