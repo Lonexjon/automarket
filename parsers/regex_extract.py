@@ -93,10 +93,51 @@ def detect_flags(text: str) -> list[dict]:
             break  # одного совпадения достаточно, дальше не ищем по этому паттерну
     return flags
 
-KNOWN_BRANDS = {
-    "chevrolet", "kia", "hyundai", "daewoo", "nexia", "cobalt", "malibu",
-    "gentra", "spark", "damas", "tracker", "onix", "captiva", "equinox",
-    "lacetti", "matiz", "orlando", "trailblazer", "tahoe", "optra",
+# tag -> (brand, model). Большинство тегов в каналах -- это на самом деле
+# название МОДЕЛИ (Cobalt, Nexia, Malibu -- всё это модели Chevrolet в
+# узбекской линейке), а не марки. Раньше это писалось прямо в поле "brand",
+# что путало сегментацию (объявления с #Cobalt не находились по фильтру
+# "Chevrolet"). Теперь разносим по обоим полям.
+BRAND_MODEL_MAP: dict[str, tuple[str, str | None]] = {
+    "chevrolet": ("chevrolet", None),
+    "kia": ("kia", None),
+    "hyundai": ("hyundai", None),
+    "daewoo": ("daewoo", None),
+    "nexia": ("chevrolet", "nexia"),
+    "cobalt": ("chevrolet", "cobalt"),
+    "malibu": ("chevrolet", "malibu"),
+    "gentra": ("chevrolet", "gentra"),
+    "spark": ("chevrolet", "spark"),
+    "damas": ("chevrolet", "damas"),
+    "tracker": ("chevrolet", "tracker"),
+    "onix": ("chevrolet", "onix"),
+    "captiva": ("chevrolet", "captiva"),
+    "equinox": ("chevrolet", "equinox"),
+    "lacetti": ("chevrolet", "lacetti"),
+    "matiz": ("chevrolet", "matiz"),
+    "orlando": ("chevrolet", "orlando"),
+    "trailblazer": ("chevrolet", "trailblazer"),
+    "tahoe": ("chevrolet", "tahoe"),
+    "optra": ("chevrolet", "optra"),
+}
+
+# Города Узбекистана -- по хэштегу/тексту, для фильтра на сайте. Список не
+# исчерпывающий, покрывает области, где сидят каналы из telegram_channels.md.
+CITY_MAP: dict[str, str] = {
+    "toshkent": "Ташкент", "ташкент": "Ташкент",
+    "samarqand": "Самарканд", "самарканд": "Самарканд",
+    "andijon": "Андижан", "андижан": "Андижан",
+    "fargona": "Фергана", "фаргона": "Фергана", "фергана": "Фергана",
+    "namangan": "Наманган", "наманган": "Наманган",
+    "buxoro": "Бухара", "бухара": "Бухара",
+    "xorazm": "Хорезм", "хоразм": "Хорезм", "urganch": "Ургенч",
+    "qarshi": "Карши", "карши": "Карши",
+    "termiz": "Термез", "термез": "Термез",
+    "navoiy": "Навои", "навои": "Навои",
+    "jizzax": "Джизак", "джизак": "Джизак",
+    "guliston": "Гулистан", "гулистан": "Гулистан",
+    "nukus": "Нукус", "нукус": "Нукус",
+    "qoqon": "Коканд", "коканд": "Коканд",
 }
 
 
@@ -105,15 +146,27 @@ def normalize_number(raw: str) -> float:
     return float(digits) if digits else 0.0
 
 
-def guess_brand(text: str) -> str | None:
+def guess_brand_model(text: str) -> tuple[str | None, str | None]:
     for tag in HASHTAG_RE.findall(text):
         low = tag.lower()
-        if low in KNOWN_BRANDS:
-            return low
+        if low in BRAND_MODEL_MAP:
+            return BRAND_MODEL_MAP[low]
     low_text = text.lower()
-    for brand in KNOWN_BRANDS:
-        if brand in low_text:
-            return brand
+    for tag, (brand, model) in BRAND_MODEL_MAP.items():
+        if tag in low_text:
+            return brand, model
+    return None, None
+
+
+def guess_city(text: str) -> str | None:
+    for tag in HASHTAG_RE.findall(text):
+        low = tag.lower()
+        if low in CITY_MAP:
+            return CITY_MAP[low]
+    low_text = text.lower()
+    for tag, city in CITY_MAP.items():
+        if tag in low_text:
+            return city
     return None
 
 
@@ -136,7 +189,8 @@ def try_extract(text: str) -> dict | None:
     year_m = YEAR_RE.search(text) or YEAR_FALLBACK_RE.search(text)
     mileage_m = MILEAGE_RE.search(text)
     phone_m = PHONE_RE.search(text)
-    brand = guess_brand(text)
+    brand, model = guess_brand_model(text)
+    city = guess_city(text)
 
     transmission = None
     if TRANSMISSION_AUTO_RE.search(text):
@@ -150,7 +204,8 @@ def try_extract(text: str) -> dict | None:
 
     return {
         "brand": brand,
-        "model": None,  # regex не выделяет модель надёжно -- оставляем пусто
+        "model": model,
+        "city": city,
         "year": int(year_m.group(1)) if year_m else None,
         "mileage_km": int(normalize_number(mileage_m.group(1))) if mileage_m else None,
         "price_usd": normalize_number(price_usd_m.group(1)) if price_usd_m else None,
@@ -209,15 +264,15 @@ def main(limit: int | None):
         con.execute(
             """INSERT INTO listings (
                 id, source, source_id, source_url, category, title,
-                price_usd, price_uzs, brand, model, year, mileage_km,
+                price_usd, price_uzs, city, brand, model, year, mileage_km,
                 transmission, description_raw, flags, phone_hash,
                 posted_at, first_seen_at, last_seen_at
-            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO NOTHING""",
             (
                 listing_id, source_id, source_url,
-                f"{data.get('brand') or ''} {data.get('year') or ''}".strip() or "Без названия",
-                data["price_usd"] or None, data["price_uzs"] or None,
+                f"{data.get('brand') or ''} {data.get('model') or ''} {data.get('year') or ''}".strip() or "Без названия",
+                data["price_usd"] or None, data["price_uzs"] or None, data["city"],
                 data["brand"], data["model"], data["year"], data["mileage_km"],
                 data["transmission"], text, json.dumps(flags, ensure_ascii=False) if flags else None,
                 phone_hash(data["phone"]), posted_at, now, now,

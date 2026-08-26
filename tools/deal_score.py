@@ -1,10 +1,7 @@
 """
 Считает deal_score для каждого объявления: насколько цена ниже/выше медианы
-своего сегмента (brand + year).
-
-Модель почти нигде не извлечена (regex её не выделяет надёжно), поэтому
-сегмент пока строим по марка+год -- это грубее, чем марка+модель+год, но
-единственный вариант, пока модель массово не заполнена.
+своего сегмента (brand + model + year). Если модель не распозналась (None) --
+это тоже валидная группа сама по себе, просто грубее.
 
 Считаем медиану только по:
   - каноническим объявлениям (duplicate_of IS NULL) -- репост не должен
@@ -69,7 +66,7 @@ def main():
     ensure_schema(con)
 
     rows = con.execute(
-        """SELECT id, brand, year, price_usd FROM listings
+        """SELECT id, brand, model, year, price_usd FROM listings
            WHERE duplicate_of IS NULL AND brand IS NOT NULL AND year IS NOT NULL
              AND removed_at IS NULL"""
     ).fetchall()
@@ -77,9 +74,9 @@ def main():
     # Первый проход: грубая медиана по сегменту, только чтобы отсеять
     # относительные выбросы -- сама по себе она объявлениям не присваивается.
     raw_prices = defaultdict(list)
-    for _, brand, year, price_usd in rows:
+    for _, brand, model, year, price_usd in rows:
         if price_usd and price_usd >= MIN_PLAUSIBLE_PRICE_USD:
-            raw_prices[(brand, year)].append(price_usd)
+            raw_prices[(brand, model, year)].append(price_usd)
     raw_medians = {
         segment: statistics.median(prices) for segment, prices in raw_prices.items()
     }
@@ -87,8 +84,8 @@ def main():
     # Второй проход: убираем цены дальше OUTLIER_RATIO от грубой медианы,
     # медиана на чистых данных -- она и попадает в базу как segment_median_usd.
     segment_prices = defaultdict(list)
-    for _, brand, year, price_usd in rows:
-        segment = (brand, year)
+    for _, brand, model, year, price_usd in rows:
+        segment = (brand, model, year)
         raw_median = raw_medians.get(segment)
         if (
             price_usd
@@ -104,8 +101,8 @@ def main():
     }
 
     updated = 0
-    for listing_id, brand, year, price_usd in rows:
-        segment = (brand, year)
+    for listing_id, brand, model, year, price_usd in rows:
+        segment = (brand, model, year)
         median = medians.get(segment)
         sample_size = len(segment_prices.get(segment, []))
         is_outlier = not price_usd or not median or price_usd < median * OUTLIER_RATIO
@@ -124,7 +121,7 @@ def main():
 
     con.commit()
     con.close()
-    print(f"Сегментов (brand+year): {len(medians)}")
+    print(f"Сегментов (brand+model+year): {len(medians)}")
     print(f"Объявлений обновлено: {updated}")
 
 
