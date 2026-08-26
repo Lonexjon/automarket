@@ -1,0 +1,13 @@
+[Unit]
+Description=Automarket API + сайт (FastAPI/uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/automarket
+ExecStart=/root/automarket/.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
