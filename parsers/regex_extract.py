@@ -267,7 +267,7 @@ def main(limit: int | None):
                 price_usd, price_uzs, city, brand, model, year, mileage_km,
                 transmission, description_raw, flags, phone_hash,
                 posted_at, first_seen_at, last_seen_at
-            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO NOTHING""",
             (
                 listing_id, source_id, source_url,
