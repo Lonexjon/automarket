@@ -117,12 +117,15 @@ def check(con: sqlite3.Connection) -> list[str]:
     if bad_hash:
         problems.append(f"phone_hash не похож на sha256: {len(bad_hash)} штук -- {bad_hash[:5]}")
 
-    # 10. Год вне разумного диапазона
+    # 10. Год вне разумного диапазона. regex-путь сам ограничен 2000-2029
+    # (YEAR_RE), но старый LLM-путь такого ограничения не имел -- реальные
+    # старые машины (Жигули, Дамас 90-х) там законны, это не баг. Ловим
+    # только откровенный мусор (в будущем, или до появления машин вообще).
     bad_year = con.execute(
-        "SELECT id, year FROM listings WHERE year IS NOT NULL AND (year < 2000 OR year > 2029)"
+        "SELECT id, year FROM listings WHERE year IS NOT NULL AND (year < 1970 OR year > 2029)"
     ).fetchall()
     if bad_year:
-        problems.append(f"Год вне диапазона 2000-2029: {len(bad_year)} штук -- {bad_year[:5]}")
+        problems.append(f"Год вне диапазона 1970-2029: {len(bad_year)} штук -- {bad_year[:5]}")
 
     return problems
 
