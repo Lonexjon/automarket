@@ -5,3 +5,5 @@ telethon
 python-dotenv
 python-socks[asyncio]
 anthropic
+fastapi
+uvicorn[standard]
