@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS telegram_raw (
     posted_at    TEXT,
     text         TEXT,
     has_photo    INTEGER,
+    has_video    INTEGER,
     fetched_at   TEXT NOT NULL,
     PRIMARY KEY (channel, message_id)
 );
@@ -58,6 +59,10 @@ CREATE TABLE IF NOT EXISTS telegram_raw (
 
 def ensure_schema(con: sqlite3.Connection) -> None:
     con.executescript(SCHEMA)
+    try:
+        con.execute("ALTER TABLE telegram_raw ADD COLUMN has_video INTEGER")
+    except sqlite3.OperationalError:
+        pass  # уже есть
     con.commit()
 
 
@@ -82,15 +87,20 @@ async def ingest_channel(client: TelegramClient, con: sqlite3.Connection, channe
     saved = 0
     now = datetime.now(timezone.utc).isoformat()
     async for message in client.iter_messages(entity, **iter_kwargs):
-        if not message.text and not message.photo:
+        # video/video_note -- некоторые каналы кидают объявление видео вместо
+        # фото+текста (обычный video поддерживает подпись-текст, круглая
+        # video_note -- нет, так у неё text будет пустым и разобрать нечего,
+        # но саму запись сохраняем, а не пропускаем молча, как раньше).
+        is_video = bool(message.video or message.video_note)
+        if not message.text and not message.photo and not is_video:
             continue  # служебные сообщения (закреп и т.п.)
         con.execute(
-            """INSERT INTO telegram_raw (channel, message_id, posted_at, text, has_photo, fetched_at)
-               VALUES (?, ?, ?, ?, ?, ?)
+            """INSERT INTO telegram_raw (channel, message_id, posted_at, text, has_photo, has_video, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(channel, message_id) DO UPDATE SET
-                 text=excluded.text, has_photo=excluded.has_photo, fetched_at=excluded.fetched_at""",
+                 text=excluded.text, has_photo=excluded.has_photo, has_video=excluded.has_video, fetched_at=excluded.fetched_at""",
             (channel, message.id, message.date.isoformat() if message.date else None,
-             message.text, 1 if message.photo else 0, now),
+             message.text, 1 if message.photo else 0, 1 if is_video else 0, now),
         )
         saved += 1
     con.commit()

@@ -76,6 +76,12 @@ FLAG_PATTERNS = [
         r"urilgan|урилган|\bбит[аоы]\b|битый", re.I)),
     ("needs_repair_mentioned", "Упоминается требуемый ремонт", "warning", re.compile(
         r"ta'mirtalab|ремонт\s*треб|требует\s*ремонта", re.I)),
+    ("taxi_mentioned", "Упоминается такси/корпоративное использование", "warning", re.compile(
+        r"\bтакси\b|\btaksi\b|korporativ|корпоратив", re.I)),
+    ("documents_issue_mentioned", "Упоминаются проблемы с документами/растаможкой", "warning", re.compile(
+        r"hujjatlar\s*muammo|документ[аоы]?\s*проблем|не\s*растаможен|rastamojka\s*yo'q", re.I)),
+    ("pledge_mentioned", "Упоминается залог/непогашенный кредит", "warning", re.compile(
+        r"garov|залог|kredit(?:da|га)?\s*(?:tolan|туриб)|кредит\s*не\s*выплач", re.I)),
 ]
 
 # Отрицание рядом со словом переворачивает смысл ("avariyaga uchramagan" =
@@ -125,6 +131,20 @@ BRAND_MODEL_MAP: dict[str, tuple[str, str | None]] = {
     "trailblazer": ("chevrolet", "trailblazer"),
     "tahoe": ("chevrolet", "tahoe"),
     "optra": ("chevrolet", "optra"),
+    "monza": ("chevrolet", "monza"),
+    "trax": ("chevrolet", "trax"),
+    "blazer": ("chevrolet", "blazer"),
+    "aveo": ("chevrolet", "aveo"),
+    "epica": ("chevrolet", "epica"),
+    # Kia
+    "k5": ("kia", "k5"), "sportage": ("kia", "sportage"), "seltos": ("kia", "seltos"),
+    "sorento": ("kia", "sorento"), "cerato": ("kia", "cerato"), "rio": ("kia", "rio"),
+    "soluto": ("kia", "soluto"), "picanto": ("kia", "picanto"), "carnival": ("kia", "carnival"),
+    # Hyundai
+    "elantra": ("hyundai", "elantra"), "sonata": ("hyundai", "sonata"),
+    "tucson": ("hyundai", "tucson"), "santafe": ("hyundai", "santa fe"),
+    "accent": ("hyundai", "accent"), "creta": ("hyundai", "creta"),
+    "solaris": ("hyundai", "solaris"),
 }
 
 # Города Узбекистана -- по хэштегу/тексту, для фильтра на сайте. Список не
@@ -144,6 +164,14 @@ CITY_MAP: dict[str, str] = {
     "guliston": "Гулистан", "гулистан": "Гулистан",
     "nukus": "Нукус", "нукус": "Нукус",
     "qoqon": "Коканд", "коканд": "Коканд",
+    "chirchiq": "Чирчик", "чирчик": "Чирчик",
+    "angren": "Ангрен", "ангрен": "Ангрен",
+    "bekobod": "Бекабад", "бекабад": "Бекабад",
+    "margilon": "Маргилан", "маргилан": "Маргилан",
+    "denov": "Денау", "денау": "Денау",
+    "shahrisabz": "Шахрисабз", "шахрисабз": "Шахрисабз",
+    "kattaqorgon": "Каттакурган", "каттакурган": "Каттакурган",
+    "olmaliq": "Алмалык", "алмалык": "Алмалык",
 }
 
 
