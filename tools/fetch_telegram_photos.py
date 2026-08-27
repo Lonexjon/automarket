@@ -11,6 +11,12 @@ Telegram для встраивания превью постов на сторо
 tgme_widget_message_photo_wrap -- так Telegram верстает превью-страницу.
 Если разметка Telegram сменится, эти два маркера придётся поправить.
 
+ВАЖНО: t.me/s/<channel>/<id> отдаёт не только запрошенный пост, а несколько
+соседних сообщений для контекста -- если брать первое найденное фото по
+всей странице, легко подцепить фото ЧУЖОГО поста. Поэтому сначала находим
+блок именно нужного сообщения (по data-post="channel/id", так Telegram
+маркирует каждый пост в разметке), и ищем фото только внутри него.
+
 Использование:
   python3 tools/fetch_telegram_photos.py            # все необработанные
   python3 tools/fetch_telegram_photos.py 50         # ограничить (тест)
@@ -47,11 +53,31 @@ def fetch_unprocessed(con: sqlite3.Connection, limit: int | None):
     return con.execute(query).fetchall()
 
 
+def extract_message_block(html: str, channel: str, message_id: str) -> str | None:
+    """Вырезает HTML именно нужного поста -- страница отдаёт несколько
+    соседних сообщений, каждое помечено data-post="channel/id"."""
+    marker = f'data-post="{channel}/{message_id}"'
+    start = html.find(marker)
+    if start == -1:
+        return None
+    # блок сообщения -- от его начала (немного назад, до открывающего тега
+    # div) до начала СЛЕДУЮЩЕГО тега с data-post -- следующий пост уже не наш.
+    block_start = html.rfind("<div", 0, start)
+    next_marker_pos = html.find('data-post="', start + len(marker))
+    block_end = html.rfind("<div", 0, next_marker_pos) if next_marker_pos != -1 else len(html)
+    return html[block_start if block_start != -1 else start:block_end]
+
+
 async def fetch_photo_urls(client: httpx.AsyncClient, channel: str, message_id: str) -> list[str]:
     resp = await client.get(f"https://t.me/s/{channel}/{message_id}")
     if resp.status_code != 200:
         return []
-    urls = PHOTO_URL_RE.findall(resp.text)
+
+    block = extract_message_block(resp.text, channel, message_id)
+    if block is None:
+        return []  # не нашли разметку именно этого поста -- лучше пусто, чем чужое фото
+
+    urls = PHOTO_URL_RE.findall(block)
     # дедуп с сохранением порядка
     seen: set[str] = set()
     result = []
