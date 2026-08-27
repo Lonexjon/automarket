@@ -21,6 +21,7 @@ segment_sample_size честно показывает, что доверять �
 Использование:
   python3 tools/deal_score.py
 """
+import json
 import os
 import sqlite3
 import statistics
@@ -42,6 +43,22 @@ MIN_PLAUSIBLE_PRICE_USD = 1000
 # Такую цену не учитываем в медиане и не даём ей deal_score -- честно
 # показываем "не знаем", а не подсовываем вводящий в заблуждение % скидки.
 OUTLIER_RATIO = 0.35
+
+# Объявление с этим флагом (см. regex_extract.py FLAG_PATTERNS) -- цена в
+# нём почти наверняка первый взнос по рассрочке, а не полная стоимость.
+# Такую цену тоже не учитываем в медиане и не даём ей deal_score --
+# иначе рассрочка систематически выглядит как "супер-выгодная цена".
+INSTALLMENT_FLAG_CODE = "installment_price_mentioned"
+
+
+def has_installment_flag(flags_raw: str | None) -> bool:
+    if not flags_raw:
+        return False
+    try:
+        flags = json.loads(flags_raw)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return any(f.get("code") == INSTALLMENT_FLAG_CODE for f in flags)
 
 
 def ensure_schema(con: sqlite3.Connection) -> None:
@@ -66,7 +83,7 @@ def main():
     ensure_schema(con)
 
     rows = con.execute(
-        """SELECT id, brand, model, year, price_usd FROM listings
+        """SELECT id, brand, model, year, price_usd, flags FROM listings
            WHERE duplicate_of IS NULL AND brand IS NOT NULL AND year IS NOT NULL
              AND removed_at IS NULL"""
     ).fetchall()
@@ -74,8 +91,8 @@ def main():
     # Первый проход: грубая медиана по сегменту, только чтобы отсеять
     # относительные выбросы -- сама по себе она объявлениям не присваивается.
     raw_prices = defaultdict(list)
-    for _, brand, model, year, price_usd in rows:
-        if price_usd and price_usd >= MIN_PLAUSIBLE_PRICE_USD:
+    for _, brand, model, year, price_usd, flags_raw in rows:
+        if price_usd and price_usd >= MIN_PLAUSIBLE_PRICE_USD and not has_installment_flag(flags_raw):
             raw_prices[(brand, model, year)].append(price_usd)
     raw_medians = {
         segment: statistics.median(prices) for segment, prices in raw_prices.items()
@@ -84,12 +101,13 @@ def main():
     # Второй проход: убираем цены дальше OUTLIER_RATIO от грубой медианы,
     # медиана на чистых данных -- она и попадает в базу как segment_median_usd.
     segment_prices = defaultdict(list)
-    for _, brand, model, year, price_usd in rows:
+    for _, brand, model, year, price_usd, flags_raw in rows:
         segment = (brand, model, year)
         raw_median = raw_medians.get(segment)
         if (
             price_usd
             and price_usd >= MIN_PLAUSIBLE_PRICE_USD
+            and not has_installment_flag(flags_raw)
             and raw_median
             and price_usd >= raw_median * OUTLIER_RATIO
         ):
@@ -101,13 +119,19 @@ def main():
     }
 
     updated = 0
-    for listing_id, brand, model, year, price_usd in rows:
+    for listing_id, brand, model, year, price_usd, flags_raw in rows:
         segment = (brand, model, year)
         median = medians.get(segment)
         sample_size = len(segment_prices.get(segment, []))
         is_outlier = not price_usd or not median or price_usd < median * OUTLIER_RATIO
 
-        if median is None or not price_usd or price_usd < MIN_PLAUSIBLE_PRICE_USD or is_outlier:
+        if (
+            median is None
+            or not price_usd
+            or price_usd < MIN_PLAUSIBLE_PRICE_USD
+            or has_installment_flag(flags_raw)
+            or is_outlier
+        ):
             deal_score = None
         else:
             deal_score = round((median - price_usd) / median * 100, 1)

@@ -82,6 +82,13 @@ FLAG_PATTERNS = [
         r"hujjatlar\s*muammo|документ[аоы]?\s*проблем|не\s*растаможен|rastamojka\s*yo'q", re.I)),
     ("pledge_mentioned", "Упоминается залог/непогашенный кредит", "warning", re.compile(
         r"garov|залог|kredit(?:da|га)?\s*(?:tolan|туриб)|кредит\s*не\s*выплач", re.I)),
+    # Если в тексте есть "рассрочка" -- извлечённая цена почти наверняка
+    # первый взнос, а не полная стоимость машины. deal_score.py отдельно
+    # исключает объявления с этим флагом из медианы/собственного deal_score
+    # (см. INSTALLMENT_FLAG_CODE там) -- иначе они выглядят как "супер-цена",
+    # хотя на деле это просто часть суммы.
+    ("installment_price_mentioned", "Цена может быть первым взносом по рассрочке, не полной стоимостью", "warning", re.compile(
+        r"rassrochka|рассрочк|bo'lib[- ]bo'lib|oyiga\s*to'lov|oyma-oy", re.I)),
 ]
 
 # Отрицание рядом со словом переворачивает смысл ("avariyaga uchramagan" =
