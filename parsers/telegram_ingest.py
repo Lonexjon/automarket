@@ -41,6 +41,9 @@ CHANNELS = [
     "namangan_andijon_fargona1", "surxandaryo_termiz_mashinalari",
     "novoiy_moshina", "horazm_moshina", "Captiva_Malibu_Kaptiva_Bozor",
     "avtoelon",
+    # добавлены 2026-08-28 по просьбе владельца -- часть постов там кидают
+    # видео-сообщением вместо фото (см. telegram_channels.md)
+    "oddiybola_avto", "mashinalar_vodiybozor", "doda_narx",
 ]
 
 SCHEMA = """
