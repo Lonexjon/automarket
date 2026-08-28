@@ -1,0 +1,20 @@
+name: Refresh Telegram photo links
+
+# Ссылки на фото (cdn*.telesco.pe) -- подписанные URL с истекающим
+# токеном (см. docstring в tools/fetch_telegram_photos.py). Без периодического
+# переполучения сайт со временем накапливает битые картинки. Раз в 12 часов
+# достаточно с запасом.
+on:
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: self-hosted
+    steps:
+      - name: Обновить/добрать фото
+        run: |
+          cd ~/automarket
+          source .venv/bin/activate
+          python3 tools/fetch_telegram_photos.py

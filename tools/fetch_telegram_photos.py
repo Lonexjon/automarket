@@ -4,21 +4,33 @@ Telegram (t.me/s/<channel>/<message_id>) -- без скачивания и хр�
 у себя. Это те же правила, что и для OLX/Avtoelon: photo_url ведёт на CDN
 самого источника (в данном случае -- серверы Telegram), мы не re-host'им.
 
-t.me/s/... -- открытая страница без авторизации, специально предназначена
+t.me/s/... -- открытая страница без авторизации, специально предназначенная
 Telegram для встраивания превью постов на сторонних сайтах.
 
 Фото у поста ищем как background-image:url('...') внутри
 tgme_widget_message_photo_wrap -- так Telegram верстает превью-страницу.
 Если разметка Telegram сменится, эти два маркера придётся поправить.
 
-ВАЖНО: t.me/s/<channel>/<id> отдаёт не только запрошенный пост, а несколько
-соседних сообщений для контекста -- если брать первое найденное фото по
-всей странице, легко подцепить фото ЧУЖОГО поста. Поэтому сначала находим
-блок именно нужного сообщения (по data-post="channel/id", так Telegram
-маркирует каждый пост в разметке), и ищем фото только внутри него.
+ВАЖНО (двойная ловушка тут):
+
+1. t.me/s/<channel>/<id> отдаёт не только запрошенный пост, а несколько
+   соседних сообщений для контекста -- если брать первое найденное фото по
+   всей странице, легко подцепить фото ЧУЖОГО поста. Поэтому сначала находим
+   блок именно нужного сообщения (по data-post="channel/id", так Telegram
+   маркирует каждый пост в разметке), и ищем фото только внутри него.
+
+2. Ссылки cdn*.telesco.pe -- это подписанные URL с токеном, который
+   ИСТЕКАЕТ. Проверено на практике: повторный запрос той же t.me/s/
+   страницы через несколько дней отдаёт для того же поста ДРУГОЙ URL с
+   другим токеном, а старый уже отвечает 404. Значит фото нельзя зафетчить
+   один раз и забыть -- их нужно периодически переполучать заново, иначе
+   сайт со временем накопит битые картинки (что легко спутать с "фото не
+   тем машинам" -- это отдельная, уже исправленная проблема выше).
+   Поэтому main() обновляет не только записи без фото, но и записи, чьи
+   фото были получены раньше STALE_AFTER_DAYS назад.
 
 Использование:
-  python3 tools/fetch_telegram_photos.py            # все необработанные
+  python3 tools/fetch_telegram_photos.py            # новые + протухшие
   python3 tools/fetch_telegram_photos.py 50         # ограничить (тест)
 """
 import asyncio
@@ -41,12 +53,28 @@ PHOTO_URL_RE = re.compile(
 REQUEST_DELAY_SECONDS = 1.0
 MAX_PHOTOS_PER_LISTING = 5
 
+# telesco.pe-токены на практике живут явно дольше пары часов, но точный TTL
+# неизвестен и не документирован Telegram -- переполучаем с запасом, чаще,
+# чем сайт вообще обновляется (каждые 6 часов, см. web/app.js loadStats).
+STALE_AFTER_DAYS = 2
+
+
+def ensure_schema(con: sqlite3.Connection) -> None:
+    try:
+        con.execute("ALTER TABLE listings ADD COLUMN photo_fetched_at TEXT")
+    except sqlite3.OperationalError:
+        pass  # уже есть
+    con.commit()
+
 
 def fetch_unprocessed(con: sqlite3.Connection, limit: int | None):
-    query = """
+    query = f"""
         SELECT l.id, l.source_id FROM listings l
         JOIN telegram_raw r ON r.channel || ':' || r.message_id = l.source_id
-        WHERE l.source = 'telegram' AND l.photo_urls IS NULL AND r.has_photo = 1
+        WHERE l.source = 'telegram' AND r.has_photo = 1
+          AND (l.photo_urls IS NULL OR l.photo_fetched_at IS NULL
+               OR l.photo_fetched_at < datetime('now', '-{STALE_AFTER_DAYS} days'))
+        ORDER BY l.photo_fetched_at IS NOT NULL, l.photo_fetched_at ASC
     """
     if limit:
         query += f" LIMIT {int(limit)}"
@@ -92,8 +120,9 @@ async def fetch_photo_urls(client: httpx.AsyncClient, channel: str, message_id: 
 
 async def main(limit: int | None):
     con = sqlite3.connect(DB_PATH)
+    ensure_schema(con)
     rows = fetch_unprocessed(con, limit)
-    print(f"К обработке: {len(rows)} объявлений с фото\n")
+    print(f"К обработке: {len(rows)} объявлений с фото (новые + протухшие старше {STALE_AFTER_DAYS} дн.)\n")
 
     found, empty = 0, 0
     async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
@@ -107,7 +136,7 @@ async def main(limit: int | None):
 
             if urls:
                 con.execute(
-                    "UPDATE listings SET photo_urls = ? WHERE id = ?",
+                    "UPDATE listings SET photo_urls = ?, photo_fetched_at = datetime('now') WHERE id = ?",
                     (json.dumps(urls), listing_id),
                 )
                 found += 1
