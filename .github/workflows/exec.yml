@@ -2,8 +2,8 @@ name: Exec (dev remote command)
 on:
   workflow_dispatch:
     inputs:
-      cmd_b64:
-        description: "Команда для bash, в base64 (чтобы не бороться с экранированием в YAML/UI)"
+      cmd:
+        description: "Команда/скрипт для bash (многострочный ок)"
         required: true
 
 jobs:
@@ -11,9 +11,11 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Выполнить команду
+        env:
+          CMD_TEXT: ${{ inputs.cmd }}
         run: |
           cd ~/automarket
-          echo "${{ inputs.cmd_b64 }}" | base64 -d > /tmp/exec_cmd.sh
+          printf '%s\n' "$CMD_TEXT" > /tmp/exec_cmd.sh
           echo "--- cmd ---"
           cat /tmp/exec_cmd.sh
           echo "--- output ---"
