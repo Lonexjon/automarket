@@ -1,0 +1,21 @@
+name: Exec (dev remote command)
+on:
+  workflow_dispatch:
+    inputs:
+      cmd_b64:
+        description: "Команда для bash, в base64 (чтобы не бороться с экранированием в YAML/UI)"
+        required: true
+
+jobs:
+  exec:
+    runs-on: self-hosted
+    steps:
+      - name: Выполнить команду
+        run: |
+          cd ~/automarket
+          echo "${{ inputs.cmd_b64 }}" | base64 -d > /tmp/exec_cmd.sh
+          echo "--- cmd ---"
+          cat /tmp/exec_cmd.sh
+          echo "--- output ---"
+          bash /tmp/exec_cmd.sh
+          rm -f /tmp/exec_cmd.sh
