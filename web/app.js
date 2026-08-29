@@ -44,6 +44,14 @@ function cardHtml(item) {
     ? (() => { const b = dealBadge(item.deal_score); return `<span class="deal-badge ${b.cls}">${b.text}</span>`; })()
     : `<span class="deal-badge deal-market">Цена не определена</span>`;
 
+  // needs_review приходит из money.py: цена технически есть, но текст
+  // объявления неоднозначен (несколько похожих на цену сумм) -- без этой
+  // пометки цена в ленте выглядела бы так же надёжно, как честная,
+  // а разбор неоднозначности читатель увидит только на детальной странице.
+  const reviewBadge = item.needs_review
+    ? `<span class="deal-badge deal-market">⚠️ Требует проверки</span>`
+    : "";
+
   return `
     <a class="card" href="listing.html?id=${encodeURIComponent(item.id)}">
       <div class="card-photo">${photo}</div>
@@ -53,6 +61,7 @@ function cardHtml(item) {
         <p class="card-price">${formatPrice(item)}</p>
         <div class="row">
           ${priceBadge}
+          ${reviewBadge}
           <span class="source-tag">${SOURCE_LABEL[item.source] || item.source}</span>
           ${flag ? `<span class="flag-tag">${flag.label}</span>` : ""}
         </div>
