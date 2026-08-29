@@ -28,7 +28,6 @@ function buildQuery() {
 }
 
 function cardHtml(item) {
-  const badge = dealBadge(item.deal_score);
   const flag = (item.flags || [])[0];
   const photo = item.photo_url
     ? `<img src="${item.photo_url}" alt="" loading="lazy" />`
@@ -37,15 +36,23 @@ function cardHtml(item) {
   const specs = [item.year, item.mileage_km ? `${item.mileage_km.toLocaleString("ru-RU")} км` : null]
     .filter(Boolean).join(" · ");
 
+  // Бейдж "выгодная цена" показываем ТОЛЬКО когда есть настоящая цена --
+  // если price_usd пустой (первый взнос/договорная/рассрочка и т.п.),
+  // сравнивать не с чем, и бейдж "Нет данных по рынку" выглядел бы как
+  // "мы посмотрели и не нашли скидку", хотя на деле цену вообще не знаем.
+  const priceBadge = item.price_usd
+    ? (() => { const b = dealBadge(item.deal_score); return `<span class="deal-badge ${b.cls}">${b.text}</span>`; })()
+    : `<span class="deal-badge deal-market">Цена не определена</span>`;
+
   return `
     <a class="card" href="listing.html?id=${encodeURIComponent(item.id)}">
       <div class="card-photo">${photo}</div>
       <div class="card-body">
         <p class="card-title">${item.title || "Без названия"}</p>
         <p class="card-meta">${[item.city, specs].filter(Boolean).join(" · ") || "—"} · ${timeAgo(item.posted_at)}</p>
-        <p class="card-price">${formatPrice(item.price_usd, item.price_uzs)}</p>
+        <p class="card-price">${formatPrice(item)}</p>
         <div class="row">
-          <span class="deal-badge ${badge.cls}">${badge.text}</span>
+          ${priceBadge}
           <span class="source-tag">${SOURCE_LABEL[item.source] || item.source}</span>
           ${flag ? `<span class="flag-tag">${flag.label}</span>` : ""}
         </div>

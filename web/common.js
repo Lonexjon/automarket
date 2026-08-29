@@ -41,11 +41,25 @@ function timeAgo(isoDate) {
   return new Date(isoDate).toLocaleDateString("ru-RU");
 }
 
-function formatPrice(usd, uzs) {
+// Когда price_usd/price_uzs оба пустые, price_type объясняет ПОЧЕМУ --
+// первый взнос/ежемесячный платёж НИКОГДА не подставляются вместо цены
+// (см. parsers/money.py), это не "не смогли распарсить", а осознанное
+// "мы знаем, что это не полная цена".
+const PRICE_TYPE_LABEL = {
+  negotiable: "Цена договорная",
+  down_payment: "Цена не указана (в тексте — только первый взнос по рассрочке)",
+  monthly_payment: "Цена не указана (в тексте — только ежемесячный платёж)",
+  installment: "Цена не указана (в тексте — условия рассрочки)",
+  exchange_addition: "Цена не указана (в тексте — доплата к обмену)",
+  unknown: "Цена не указана",
+};
+
+function formatPrice(item) {
   const parts = [];
-  if (usd) parts.push(`$${usd.toLocaleString("ru-RU")}`);
-  if (uzs) parts.push(`<span class="uzs">${uzs.toLocaleString("ru-RU")} сум</span>`);
-  return parts.join(" ") || "Цена не указана";
+  if (item.price_usd) parts.push(`$${item.price_usd.toLocaleString("ru-RU")}`);
+  if (item.price_uzs) parts.push(`<span class="uzs">${item.price_uzs.toLocaleString("ru-RU")} сум</span>`);
+  if (parts.length) return parts.join(" ");
+  return PRICE_TYPE_LABEL[item.price_type] || "Цена не указана";
 }
 
 async function apiGet(path) {

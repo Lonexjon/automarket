@@ -3,20 +3,27 @@
 своего сегмента (brand + model + year). Если модель не распозналась (None) --
 это тоже валидная группа сама по себе, просто грубее.
 
-Считаем медиану только по:
-  - каноническим объявлениям (duplicate_of IS NULL) -- репост не должен
-    задвоенно давить на медиану;
-  - объявлениям с ценой в $ (price_usd) -- сумовые без курса конвертации
-    в выборку медианы не берём, но deal_score им всё равно посчитаем,
-    если у сегмента есть медиана от других объявлений.
+Считаем медиану только по объявлениям, чья цена -- УВЕРЕННО полная цена
+машины:
+  - каноническим (duplicate_of IS NULL) -- репост не должен задвоенно
+    давить на медиану;
+  - price_type == 'full_price' (см. parsers/money.py) -- первый взнос,
+    ежемесячный платёж, доплата к обмену и т.п. никогда не попадают ни в
+    медиану, ни в собственный deal_score объявления. Это жёсткое правило,
+    не эвристика "если похоже на рассрочку" -- price_type уже решил это
+    на этапе разбора текста;
+  - needs_review == 0 -- неоднозначная цена (несколько разных "похожих на
+    полную" сумм в тексте) не участвует, пока не расчищена руками.
 
 deal_score = (median - price) / median * 100, округлено до 1 знака.
 Положительное число = объявление дешевле рынка (хорошая цена),
 отрицательное = дороже рынка.
 
-Сегменты с < MIN_SAMPLE объявлениями всё равно получают deal_score, но
-segment_sample_size честно показывает, что доверять ему рано -- решает
-это на фронтенде.
+Сегменты с < MIN_SEGMENT_SIZE объявлениями НЕ получают deal_score вообще
+(раньше получали -- segment_sample_size показывался как предупреждение, но
+цифра скидки всё равно выводилась, что на практике никто не читает мелкий
+принт под ней). Один-два объявления в сегменте -- это не рынок, это
+рандом; deal_score = None честнее, чем ложная уверенность.
 
 Использование:
   python3 tools/deal_score.py
@@ -31,11 +38,10 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 DB_PATH = os.path.join(ROOT, "automarket.db")
 SCHEMA_PATH = os.path.join(ROOT, "db", "schema.sql")
 
-# Ниже этого regex почти наверняка зацепил не цену машины, а число из
-# текста про рассрочку/предоплату/что-то ещё -- легковушка в Узбекистане
-# дешевле не продаётся. Абсолютный порог ловит только самые грубые случаи
-# ("$100" вместо цены) -- он никогда не покроет всё (рассрочка тоже может
-# начинаться от $1500), поэтому дальше есть ещё относительный фильтр.
+# Ниже этого цена почти наверняка зацепила не то число, даже если
+# price_type='full_price' -- легковушка в Узбекистане дешевле не продаётся.
+# Абсолютный порог ловит только самые грубые случаи, дальше есть ещё
+# относительный фильтр (OUTLIER_RATIO).
 MIN_PLAUSIBLE_PRICE_USD = 1000
 
 # Если цена меньше этой доли от медианы своего сегмента -- она статистически
@@ -44,21 +50,22 @@ MIN_PLAUSIBLE_PRICE_USD = 1000
 # показываем "не знаем", а не подсовываем вводящий в заблуждение % скидки.
 OUTLIER_RATIO = 0.35
 
-# Объявление с этим флагом (см. regex_extract.py FLAG_PATTERNS) -- цена в
-# нём почти наверняка первый взнос по рассрочке, а не полная стоимость.
-# Такую цену тоже не учитываем в медиане и не даём ей deal_score --
-# иначе рассрочка систематически выглядит как "супер-выгодная цена".
-INSTALLMENT_FLAG_CODE = "installment_price_mentioned"
+# Меньше этого объявлений в сегменте -- медиана статистически ненадёжна,
+# deal_score не считаем вообще (не показываем "выгодно"/"дорого" на основе
+# одного-двух случайных объявлений).
+MIN_SEGMENT_SIZE = 3
+
+FULL_PRICE_TYPE = "full_price"
 
 
-def has_installment_flag(flags_raw: str | None) -> bool:
-    if not flags_raw:
-        return False
-    try:
-        flags = json.loads(flags_raw)
-    except (json.JSONDecodeError, TypeError):
-        return False
-    return any(f.get("code") == INSTALLMENT_FLAG_CODE for f in flags)
+def is_trustworthy_price(price_usd: float | None, price_type: str | None, needs_review: int | None) -> bool:
+    """Цена, которую можно уверенно считать полной стоимостью машины --
+    единственное место, где решается "участвует эта цена в медиане/своём
+    deal_score или нет". price_type/needs_review приходят из money.py
+    (parsers/regex_extract.py на этапе разбора) -- никогда не пересчитываем
+    их здесь заново по ключевым словам, чтобы не разойтись с тем, что
+    реально хранится в базе."""
+    return bool(price_usd) and price_type == FULL_PRICE_TYPE and not needs_review
 
 
 def ensure_schema(con: sqlite3.Connection) -> None:
@@ -83,7 +90,7 @@ def main():
     ensure_schema(con)
 
     rows = con.execute(
-        """SELECT id, brand, model, year, price_usd, flags FROM listings
+        """SELECT id, brand, model, year, price_usd, price_type, needs_review FROM listings
            WHERE duplicate_of IS NULL AND brand IS NOT NULL AND year IS NOT NULL
              AND removed_at IS NULL"""
     ).fetchall()
@@ -91,8 +98,8 @@ def main():
     # Первый проход: грубая медиана по сегменту, только чтобы отсеять
     # относительные выбросы -- сама по себе она объявлениям не присваивается.
     raw_prices = defaultdict(list)
-    for _, brand, model, year, price_usd, flags_raw in rows:
-        if price_usd and price_usd >= MIN_PLAUSIBLE_PRICE_USD and not has_installment_flag(flags_raw):
+    for _, brand, model, year, price_usd, price_type, needs_review in rows:
+        if is_trustworthy_price(price_usd, price_type, needs_review) and price_usd >= MIN_PLAUSIBLE_PRICE_USD:
             raw_prices[(brand, model, year)].append(price_usd)
     raw_medians = {
         segment: statistics.median(prices) for segment, prices in raw_prices.items()
@@ -101,13 +108,12 @@ def main():
     # Второй проход: убираем цены дальше OUTLIER_RATIO от грубой медианы,
     # медиана на чистых данных -- она и попадает в базу как segment_median_usd.
     segment_prices = defaultdict(list)
-    for _, brand, model, year, price_usd, flags_raw in rows:
+    for _, brand, model, year, price_usd, price_type, needs_review in rows:
         segment = (brand, model, year)
         raw_median = raw_medians.get(segment)
         if (
-            price_usd
+            is_trustworthy_price(price_usd, price_type, needs_review)
             and price_usd >= MIN_PLAUSIBLE_PRICE_USD
-            and not has_installment_flag(flags_raw)
             and raw_median
             and price_usd >= raw_median * OUTLIER_RATIO
         ):
@@ -116,22 +122,21 @@ def main():
     medians = {
         segment: statistics.median(prices)
         for segment, prices in segment_prices.items()
+        if len(prices) >= MIN_SEGMENT_SIZE
     }
 
     updated = 0
-    for listing_id, brand, model, year, price_usd, flags_raw in rows:
+    trusted_prices = 0
+    for listing_id, brand, model, year, price_usd, price_type, needs_review in rows:
         segment = (brand, model, year)
         median = medians.get(segment)
         sample_size = len(segment_prices.get(segment, []))
-        is_outlier = not price_usd or not median or price_usd < median * OUTLIER_RATIO
+        trustworthy = is_trustworthy_price(price_usd, price_type, needs_review)
+        if trustworthy:
+            trusted_prices += 1
+        is_outlier = not trustworthy or not median or price_usd < median * OUTLIER_RATIO
 
-        if (
-            median is None
-            or not price_usd
-            or price_usd < MIN_PLAUSIBLE_PRICE_USD
-            or has_installment_flag(flags_raw)
-            or is_outlier
-        ):
+        if median is None or not trustworthy or is_outlier:
             deal_score = None
         else:
             deal_score = round((median - price_usd) / median * 100, 1)
@@ -145,8 +150,9 @@ def main():
 
     con.commit()
     con.close()
-    print(f"Сегментов (brand+model+year): {len(medians)}")
+    print(f"Сегментов (brand+model+year) с медианой (>= {MIN_SEGMENT_SIZE} объявлений): {len(medians)}")
     print(f"Объявлений обновлено: {updated}")
+    print(f"Из них с доверенной (full_price, не needs_review) ценой: {trusted_prices}")
 
 
 if __name__ == "__main__":

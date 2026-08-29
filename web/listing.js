@@ -18,21 +18,44 @@ function flagItem(flag) {
 }
 
 function render(item) {
-  const badge = dealBadge(item.deal_score);
   const attrs = item.attrs || {};
   const photo = item.photos && item.photos.length
     ? `<img src="${item.photos[0]}" alt="" />`
     : "Фото по ссылке на оригинал";
 
+  // Бейдж выгодной цены -- только когда есть настоящая цена (см. app.js
+  // cardHtml для той же логики и почему). Иначе поясняем словами, что
+  // за деньги упомянуты в тексте (первый взнос/договорная/рассрочка).
+  const priceBadge = item.price_usd
+    ? (() => { const b = dealBadge(item.deal_score); return `<span class="deal-badge ${b.cls}">${b.text}</span>`; })()
+    : `<span class="deal-badge deal-market">Цена не определена</span>`;
+
+  const dealExplanation = (item.price_usd && item.segment_median_usd) ? `
+    <p class="card-meta">
+      Цена сравнивается с медианой ${item.segment_sample_size} похожих объявлений
+      (${attrs.brand || "?"} ${attrs.model || ""} ${attrs.year || ""}).
+      ${item.deal_score > 0
+        ? `Эта цена ниже медианы на ${Math.round(item.deal_score * 100)}%.`
+        : item.deal_score < 0
+          ? `Эта цена выше медианы на ${Math.round(-item.deal_score * 100)}%.`
+          : "Эта цена примерно на уровне медианы."}
+    </p>
+  ` : "";
+
+  const needsReviewWarning = item.needs_review ? `
+    <div class="flag-item"><span>⚠️ Цена в тексте объявления неоднозначна (несколько похожих на цену сумм) -- проверьте по оригиналу перед тем как доверять ей.</span></div>
+  ` : "";
+
   document.getElementById("content").innerHTML = `
     <div class="detail-photo">${photo}</div>
     <h1>${item.title || "Без названия"}</h1>
     <p class="card-meta">${item.city || "Город не указан"} · ${timeAgo(item.posted_at)}</p>
-    <p class="card-price" style="font-size:22px">${formatPrice(item.price_usd, item.price_uzs)}</p>
+    <p class="card-price" style="font-size:22px">${formatPrice(item)}</p>
     <div class="row">
-      <span class="deal-badge ${badge.cls}">${badge.text}</span>
+      ${priceBadge}
       <span class="source-tag">${SOURCE_LABEL[item.source] || item.source}</span>
     </div>
+    ${dealExplanation}
 
     <dl class="attrs">
       ${attrRow("Марка", attrs.brand)}
@@ -49,6 +72,8 @@ function render(item) {
         $${item.segment_median_usd.toLocaleString("ru-RU")}
       </div>
     ` : ""}
+
+    ${needsReviewWarning}
 
     ${item.flags && item.flags.length ? `
       <div class="flags-list">${item.flags.map(flagItem).join("")}</div>

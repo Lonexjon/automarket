@@ -27,13 +27,21 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(__file__))
+import money  # noqa: E402 -- извлечение/классификация денежных значений, см. money.py
+
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DB_PATH = os.path.join(ROOT, "automarket.db")
 SCHEMA_PATH = os.path.join(ROOT, "db", "schema.sql")
 
-# год: 2000-2029, отдельным словом/после Йили:/Yili:/Yil:
-YEAR_RE = re.compile(r"(?:йили|yili|yil|год|г\.в\.?)\s*[:\-]?\s*(20[0-2]\d)", re.I)
-YEAR_FALLBACK_RE = re.compile(r"\b(20[0-2]\d)\b")
+# Год: раньше было ограничено 2000-2029 -- реальный рынок включает и более
+# старые машины (GAZ 53 1990 года, Volga 1962 года -- см. health_check.py,
+# он уже принимает 1970-2029, а regex молча отбрасывал такие посты).
+# Раздельно "с явным маркером года" (Йили:/Yili:/год) и запасной вариант
+# "любое 4-значное число похожее на год" -- запасной вариант специально Уже
+# (1990-2029), чтобы не путать год с чем угодно другим 4-значным.
+YEAR_RE = re.compile(r"(?:йили|yili|yil|год|г\.в\.?)\s*[:\-]?\s*(19[7-9]\d|20[0-2]\d)", re.I)
+YEAR_FALLBACK_RE = re.compile(r"\b(19[9]\d|20[0-2]\d)\b")
 
 # \s внутри классов ниже, а не литеральный пробел -- в тексте, скопированном
 # из Telegram/таблиц, разделителем тысяч часто оказывается неразрывный
@@ -46,14 +54,11 @@ MILEAGE_RE = re.compile(
     r"(?:probeg|пробег)\s*[:\-]?\s*([\d][\d,.\s]{2,10})\s*(?:km|км)", re.I
 )
 
-# цена в $: "8,700$" / "8700 $" / "8 700 у.е." / "narxi: 15000$"
-PRICE_USD_RE = re.compile(
-    r"([\d][\d,.\s]{2,10})\s*(?:\$|у\.?\s?е\.?|y\.?\s?e\.?)", re.I
-)
-# цена в сумах: "195000000 сум" / "195 000 000 so'm"
-PRICE_UZS_RE = re.compile(
-    r"([\d][\d,.\s]{5,15})\s*(?:сум|so.?m)", re.I
-)
+# Извлечение и классификация цены -- см. money.py. Старые PRICE_USD_RE/
+# PRICE_UZS_RE (искали только ПЕРВОЕ число перед $/so'm) заменены на
+# money.resolve_price(), которая находит ВСЕ денежные упоминания и решает,
+# какое из них (если есть) действительно полная цена -- см. docstring
+# money.py про "Boshiga 2,000$ — 13 oyga 500$" и другие реальные утечки.
 
 # телефон: +998 followed by 9 digits, с разделителями или без
 PHONE_RE = re.compile(r"(\+?998[\s\-]?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})")
@@ -101,7 +106,45 @@ FLAG_PATTERNS = [
         r"rassrochka|рассрочк|bo'lib[- ]bo'lib|oyiga\s*to'lov|oyma-oy"
         r"|boshiga\s*[\d][\d,.\s]{0,10}\s*\$?.{0,40}\boyga\b"
         r"|nasiya|насия", re.I)),
+    # Каналы массово репостят "объявление УЖЕ ПРОДАНО" как отдельный жанр
+    # постов (соцдоказательство: "2012 yil Nexia2 40 mlnga baraka bo'pti
+    # tabriklaymiz" -- "продано, поздравляем"). Часть из них -- чистые
+    # поздравления без реальных данных о машине (их try_extract просто не
+    # вставляет, см. is_sold_confirmation ниже). Но другая часть -- РЕАЛЬНЫЕ
+    # структурированные объявления (с Narxi:/Йили:), к которым администратор
+    # ПОЗЖЕ дописал "Tel: #Sotildi 15300$" -- такие уже попадают в listings
+    # как будто машина всё ещё продаётся. Этот флаг ловит именно их.
+    ("sold_mentioned", "Объявление помечено как уже проданное", "critical", re.compile(
+        r"\bsotildi\b|сотилди|СОТИЛДИ|baraka\s*bo'?pti|барака\s*б[уў]?пти"
+        r"|#\s*[Ss]otildi", re.I)),
 ]
+
+# Отдельные "постов-поздравлений" НЕ являются объявлениями вообще -- канал
+# просто сообщает, что чья-то машина продалась ("Aka mashina sotildi
+# rahmat... baraka bo'pti tabriklaymiz"). У них нет структурированных полей
+# (Narxi:/Йили:/Probeg:) -- если такой маркер в тексте ЕСТЬ, это настоящее
+# объявление (просто с поздним "продано"-примечанием), и его штамповать в
+# listings можно (просто с флагом sold_mentioned выше). Если структурных
+# маркеров НЕТ вообще -- это чистое поздравление, try_extract() отбрасывает
+# его целиком, как и раньше (до сих пор это происходило случайно, из-за
+# отсутствия цены/бренда -- теперь после того как гейт "нужна цена" снят,
+# без этой явной проверки такие посты стали бы вставляться как объявления
+# с NULL-ценой, что хуже, чем не вставлять вовсе).
+STRUCTURED_MARKER_RE = re.compile(
+    r"narxi\s*[:\-]|нарх[иа]\s*[:\-]|yili\s*[:\-]|йили\s*[:\-]"
+    r"|probeg\s*[:\-]|пробег\s*[:\-]|yurgani\s*[:\-]|юрган[аи]?\s*[:\-]",
+    re.I,
+)
+SOLD_ONLY_RE = re.compile(
+    r"\bsotildi\b|сотилди|СОТИЛДИ|baraka\s*bo'?pti|барака\s*б[уў]?пти",
+    re.I,
+)
+
+
+def is_pure_sold_confirmation(text: str) -> bool:
+    """True для постов-поздравлений о продаже без единого структурного поля
+    -- это не объявление, а социальное подтверждение, вставлять не нужно."""
+    return bool(SOLD_ONLY_RE.search(text)) and not STRUCTURED_MARKER_RE.search(text)
 
 # Отрицание рядом со словом переворачивает смысл ("avariyaga uchramagan" =
 # НЕ была в аварии, "не крашена" = НЕ крашена) -- если рядом с совпадением
@@ -238,17 +281,23 @@ def phone_hash(phone: str | None) -> str | None:
 
 
 def try_extract(text: str) -> dict | None:
-    """Возвращает словарь полей, если удалось разобрать, иначе None."""
-    price_usd_m = PRICE_USD_RE.search(text)
-    price_uzs_m = PRICE_UZS_RE.search(text)
-    if not price_usd_m and not price_uzs_m:
-        return None  # без цены объявление бесполезно, не пытаемся
+    """Возвращает словарь полей, если удалось разобрать, иначе None.
+
+    ВАЖНО: раньше здесь был жёсткий гейт "нет цены -- не пытаемся вообще".
+    Теперь цена не обязательна -- если у поста есть бренд/год, но цену
+    уверенно определить нельзя, объявление всё равно сохраняется с
+    price_usd=NULL, price_type/needs_review объясняют почему (см. money.py).
+    Единственный по-прежнему жёсткий отказ -- чистые посты-поздравления о
+    продаже без единого структурного поля (is_pure_sold_confirmation)."""
+    if is_pure_sold_confirmation(text):
+        return None
 
     year_m = YEAR_RE.search(text) or YEAR_FALLBACK_RE.search(text)
     mileage_m = MILEAGE_RE.search(text)
     phone_m = PHONE_RE.search(text)
     brand, model = guess_brand_model(text)
     city = guess_city(text)
+    price = money.resolve_price(text)
 
     transmission = None
     if TRANSMISSION_AUTO_RE.search(text):
@@ -256,8 +305,9 @@ def try_extract(text: str) -> dict | None:
     elif TRANSMISSION_MANUAL_RE.search(text):
         transmission = "manual"
 
-    # без бренда и без года -- слишком неуверенно, отдаём на LLM
-    if not brand and not year_m:
+    # без бренда, без года и без ЛЮБОЙ денежной зацепки -- слишком
+    # неуверенно, точно нечего сохранять.
+    if not brand and not year_m and price.price_reason == "no_money_found":
         return None
 
     return {
@@ -266,18 +316,34 @@ def try_extract(text: str) -> dict | None:
         "city": city,
         "year": int(year_m.group(1)) if year_m else None,
         "mileage_km": int(normalize_number(mileage_m.group(1))) if mileage_m else None,
-        "price_usd": normalize_number(price_usd_m.group(1)) if price_usd_m else None,
-        "price_uzs": normalize_number(price_uzs_m.group(1)) if price_uzs_m else None,
+        "price_usd": price.price_usd,
+        "price_uzs": price.price_uzs,
+        "price_type": price.price_type,
+        "price_confidence": price.price_confidence,
+        "needs_review": price.needs_review,
+        "price_reason": price.price_reason,
         "transmission": transmission,
         "phone": phone_m.group(1) if phone_m else None,
     }
 
 
 def ensure_schema(con: sqlite3.Connection) -> None:
-    try:
-        con.execute("ALTER TABLE listings ADD COLUMN flags TEXT")
-    except sqlite3.OperationalError:
-        pass  # уже есть, или таблицы ещё нет (создастся ниже)
+    # Идемпотентная миграция: ALTER TABLE ... ADD COLUMN на существующей
+    # базе кидает OperationalError, если колонка уже есть -- ловим и
+    # продолжаем. Ничего не удаляем и не переименовываем, старые данные не
+    # трогаются, значения новых колонок NULL для уже вставленных строк
+    # (backfill делает отдельный tools/reprocess_prices.py, не эта функция).
+    for col, decl in [
+        ("flags", "TEXT"),
+        ("price_type", "TEXT"),        # full_price|down_payment|monthly_payment|exchange_addition|installment|negotiable|unknown
+        ("price_confidence", "TEXT"),  # high|medium|low
+        ("needs_review", "INTEGER"),   # 0/1
+        ("price_reason", "TEXT"),      # причина/метод решения (money.py PriceResult.price_reason)
+    ]:
+        try:
+            con.execute(f"ALTER TABLE listings ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass  # уже есть, или таблицы ещё нет (создастся ниже)
     con.commit()
 
     with open(SCHEMA_PATH) as f:
@@ -322,16 +388,18 @@ def main(limit: int | None):
         con.execute(
             """INSERT INTO listings (
                 id, source, source_id, source_url, category, title,
-                price_usd, price_uzs, city, brand, model, year, mileage_km,
+                price_usd, price_uzs, price_type, price_confidence, needs_review, price_reason,
+                city, brand, model, year, mileage_km,
                 transmission, description_raw, flags, phone_hash,
                 posted_at, first_seen_at, last_seen_at
-            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO NOTHING""",
             (
                 listing_id, source_id, source_url,
                 f"{data.get('brand') or ''} {data.get('model') or ''} {data.get('year') or ''}".strip() or "Без названия",
-                data["price_usd"] or None, data["price_uzs"] or None, data["city"],
-                data["brand"], data["model"], data["year"], data["mileage_km"],
+                data["price_usd"], data["price_uzs"], data["price_type"],
+                data["price_confidence"], int(data["needs_review"]), data["price_reason"],
+                data["city"], data["brand"], data["model"], data["year"], data["mileage_km"],
                 data["transmission"], text, json.dumps(flags, ensure_ascii=False) if flags else None,
                 phone_hash(data["phone"]), posted_at, now, now,
             ),

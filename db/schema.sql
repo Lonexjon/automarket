@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS listings (
     price_usd       REAL,
     price_uzs       REAL,
     currency_raw    TEXT,                  -- как было в объявлении, до конвертации
+    price_type       TEXT,                 -- full_price|down_payment|monthly_payment|exchange_addition|installment|negotiable|unknown (см. parsers/money.py)
+    price_confidence TEXT,                 -- high|medium|low
+    needs_review     INTEGER,              -- 0/1 -- цена неоднозначна, нужна проверка человеком
+    price_reason     TEXT,                 -- почему price_type/price_usd такие (labeled_price, only_partial_price_found, ...)
 
     city            TEXT,
 

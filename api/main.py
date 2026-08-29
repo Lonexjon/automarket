@@ -50,6 +50,14 @@ def to_summary(row: sqlite3.Row) -> dict:
         "photo_url": photo_urls[0] if photo_urls else None,
         "price_usd": row["price_usd"],
         "price_uzs": row["price_uzs"],
+        # price_type/price_confidence/needs_review -- см. parsers/money.py.
+        # Фронтенд использует это, чтобы НЕ показывать бейдж выгодной сделки
+        # и объяснять пользователю, почему цена не определена (первый
+        # взнос/ежемесячный платёж/договорная и т.п.), вместо того чтобы
+        # молча показывать пустую цену без причины.
+        "price_type": row["price_type"],
+        "price_confidence": row["price_confidence"],
+        "needs_review": bool(row["needs_review"]) if row["needs_review"] is not None else False,
         "year": row["year"],
         "mileage_km": row["mileage_km"],
         "deal_score": row["deal_score"] / 100 if row["deal_score"] is not None else None,
