@@ -20,7 +20,7 @@ Telethon пересчитать точное число подписчиков �
 | `@xolis_mashina_bozor` | 199K | — |
 | `@inamarka_mashinalar` | 166K | Иномарки, без региона |
 | `@andijon_moshina_elonlarimi` | 109K | Андижан |
-| `@vodiy_bozori_avtoelon` | 106K | Официальный "Авто Бозар" |
+| `@vodiy_bozori_avtoelon` | 106K | Официальный "Авто Бозор" |
 | `@moshina_elonlarim` | 103K | Наманган |
 | `@qarshi_mashinalarim` | 98K | Кашкадарья/Карши |
 | `@Vodiy_Avto_7` | 95.7K | Vodiy |
