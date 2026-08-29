@@ -89,17 +89,32 @@ def main():
     con = sqlite3.connect(DB_PATH)
     ensure_schema(con)
 
+    # Без фильтра по duplicate_of/brand/year/removed_at в самом SELECT --
+    # иначе дубли и объявления без марки/года никогда не попадают в цикл
+    # обновления ниже и сохраняют СТАРЫЙ deal_score/медиану, оставшиеся от
+    # прошлого прогона (реальный случай на проде: дубль с price_type=
+    # down_payment так и держал deal_score=0.0 с прошлой схемы, потому что
+    # раньше сюда вообще не попадал -- health_check был прав, что это
+    # нарушение инварианта, просто чинить нужно было тут). Ограничение по
+    # каноничности/наличию brand+year по-прежнему действует, но теперь
+    # только там, где оно принципиально: при построении медиан сегмента.
     rows = con.execute(
-        """SELECT id, brand, model, year, price_usd, price_type, needs_review FROM listings
-           WHERE duplicate_of IS NULL AND brand IS NOT NULL AND year IS NOT NULL
-             AND removed_at IS NULL"""
+        """SELECT id, brand, model, year, price_usd, price_type, needs_review, duplicate_of, removed_at
+           FROM listings"""
     ).fetchall()
+
+    def is_canonical(duplicate_of, removed_at, brand, year) -> bool:
+        return duplicate_of is None and removed_at is None and brand is not None and year is not None
 
     # Первый проход: грубая медиана по сегменту, только чтобы отсеять
     # относительные выбросы -- сама по себе она объявлениям не присваивается.
     raw_prices = defaultdict(list)
-    for _, brand, model, year, price_usd, price_type, needs_review in rows:
-        if is_trustworthy_price(price_usd, price_type, needs_review) and price_usd >= MIN_PLAUSIBLE_PRICE_USD:
+    for _, brand, model, year, price_usd, price_type, needs_review, duplicate_of, removed_at in rows:
+        if (
+            is_canonical(duplicate_of, removed_at, brand, year)
+            and is_trustworthy_price(price_usd, price_type, needs_review)
+            and price_usd >= MIN_PLAUSIBLE_PRICE_USD
+        ):
             raw_prices[(brand, model, year)].append(price_usd)
     raw_medians = {
         segment: statistics.median(prices) for segment, prices in raw_prices.items()
@@ -108,11 +123,12 @@ def main():
     # Второй проход: убираем цены дальше OUTLIER_RATIO от грубой медианы,
     # медиана на чистых данных -- она и попадает в базу как segment_median_usd.
     segment_prices = defaultdict(list)
-    for _, brand, model, year, price_usd, price_type, needs_review in rows:
+    for _, brand, model, year, price_usd, price_type, needs_review, duplicate_of, removed_at in rows:
         segment = (brand, model, year)
         raw_median = raw_medians.get(segment)
         if (
-            is_trustworthy_price(price_usd, price_type, needs_review)
+            is_canonical(duplicate_of, removed_at, brand, year)
+            and is_trustworthy_price(price_usd, price_type, needs_review)
             and price_usd >= MIN_PLAUSIBLE_PRICE_USD
             and raw_median
             and price_usd >= raw_median * OUTLIER_RATIO
@@ -127,11 +143,13 @@ def main():
 
     updated = 0
     trusted_prices = 0
-    for listing_id, brand, model, year, price_usd, price_type, needs_review in rows:
+    for listing_id, brand, model, year, price_usd, price_type, needs_review, duplicate_of, removed_at in rows:
         segment = (brand, model, year)
-        median = medians.get(segment)
-        sample_size = len(segment_prices.get(segment, []))
-        trustworthy = is_trustworthy_price(price_usd, price_type, needs_review)
+        median = medians.get(segment) if is_canonical(duplicate_of, removed_at, brand, year) else None
+        sample_size = len(segment_prices.get(segment, [])) if median is not None else 0
+        trustworthy = is_canonical(duplicate_of, removed_at, brand, year) and is_trustworthy_price(
+            price_usd, price_type, needs_review
+        )
         if trustworthy:
             trusted_prices += 1
         is_outlier = not trustworthy or not median or price_usd < median * OUTLIER_RATIO
