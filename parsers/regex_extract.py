@@ -71,7 +71,7 @@ FLAG_PATTERNS = [
     ("accident_mentioned", "Упоминается авария/ДТП", "warning", re.compile(
         r"avariya|авари|после\s*дтп|\bдтп\b", re.I)),
     ("painted_mentioned", "Упоминается покраска/крашеные элементы", "warning", re.compile(
-        r"boyalgan|бўялган|крашен|перекраш", re.I)),
+        r"boyalgan|бџялган|крашен|перекраш", re.I)),
     ("hit_mentioned", "Упоминается удар/повреждение кузова", "warning", re.compile(
         r"urilgan|урилган|\bбит[аоы]\b|битый", re.I)),
     ("needs_repair_mentioned", "Упоминается требуемый ремонт", "warning", re.compile(
@@ -116,6 +116,7 @@ NEGATION_RE = re.compile(
     r"|йўқ|йук", re.I
 )
 NEGATION_WINDOW = 20  # символов до/после совпадения, где ищем отрицание
+NEGATION_WINDOW = 20  # символов до/после совпадения, где ищем отрицание
 
 
 def detect_flags(text: str) -> list[dict]:
@@ -131,7 +132,7 @@ def detect_flags(text: str) -> list[dict]:
 
 # tag -> (brand, model). Большинство тегов в каналах -- это на самом деле
 # название МОДЕЛИ (Cobalt, Nexia, Malibu -- всё это модели Chevrolet в
-# узбекской линейке), а не марки. Раньше это писалось прямо в поле "brand",
+# узбекской линейке (а не марки. Раньше это писалось прямо в поле "brand",
 # что путало сегментацию (объявления с #Cobalt не находились по фильтру
 # "Chevrolet"). Теперь разносим по обоим полям.
 BRAND_MODEL_MAP: dict[str, tuple[str, str | None]] = {
@@ -238,7 +239,7 @@ def phone_hash(phone: str | None) -> str | None:
 
 
 def try_extract(text: str) -> dict | None:
-    """Возвращает словарь полей, если удалось распарсить, иначе None."""
+    """Возвращает словарь полей, если удалось разобрать, иначе None."""
     price_usd_m = PRICE_USD_RE.search(text)
     price_uzs_m = PRICE_UZS_RE.search(text)
     if not price_usd_m and not price_uzs_m:
