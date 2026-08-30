@@ -128,7 +128,10 @@ function dealTrust(item) {
   if (!item.price_usd) return { ok: false, reason: "no_price" };
   if (item.price_type && item.price_type !== "full_price") return { ok: false, reason: "not_full_price" };
   if (item.needs_review) return { ok: false, reason: "needs_review" };
-  if (item.price_confidence != null && item.price_confidence < 0.5) return { ok: false, reason: "low_confidence" };
+  // price_confidence приходит из money.py как категория (high/medium/low),
+  // не число -- сравнение со числом здесь было бы всегда false и никогда
+  // не срабатывало бы.
+  if (item.price_confidence === "low") return { ok: false, reason: "low_confidence" };
   if ((item.flags || []).some((f) => f.severity === "negative")) return { ok: false, reason: "critical_flag" };
   if (item.deal_score === null || item.deal_score === undefined) return { ok: false, reason: "no_segment" };
   if (item.segment_sample_size != null && item.segment_sample_size < MIN_SEGMENT_SIZE) {
