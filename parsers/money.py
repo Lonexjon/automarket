@@ -119,6 +119,18 @@ FULL_PRICE_LABEL_RE = re.compile(
     r"нарх[иа]?|narxi|narx\b|цена\b|стоимост", re.I,
 )
 
+# Реальная утечка на проде (tg_afdf96e1d5): "Нархи: Варианта 500$ берса 15
+# ой 100$ дан беришга" -- "Варианта" ("как вариант"/"один из вариантов")
+# прямо перед суммой значит "это ОДИН ИЗ вариантов оплаты" (в данном случае
+# сама схема рассрочки: 500 сейчас, затем 15 месяцев по 100), а не твёрдая
+# цена машины. "Нархи:" в начале строки не помогает -- FULL_PRICE_LABEL_RE
+# ищет метку строго перед числом (LABEL_WINDOW), а между "Нархи:" и "500$"
+# стоит "Варианта", так что метка и не должна была сработать. Проблема была
+# в другом: одинокая непомеченная сумма (500) резолвилась как уверенная
+# full_price, хотя рядом с ней стоит явный маркер "это вариант оплаты".
+VARIANT_RE = re.compile(r"вариант\w*|variantda|variant\b", re.I)
+VARIANT_MAX_DISTANCE = 20
+
 # То же отрицание, что и в regex_extract.py FLAG_PATTERNS -- если рядом с
 # маркером стоит "нет/не/yo'q/йўқ", маркер не считается.
 NEGATION_RE = re.compile(
@@ -193,6 +205,7 @@ _CONTEXT_PATTERNS = [
     ("monthly_payment", MONTHLY_RE, MAX_MARKER_DISTANCE),
     ("monthly_payment", MONTHLY_BARE_RE, MONTHLY_BARE_MAX_DISTANCE),
     ("exchange_addition", EXCHANGE_RE, MAX_MARKER_DISTANCE),
+    ("uncertain_variant", VARIANT_RE, VARIANT_MAX_DISTANCE),
 ]
 
 
@@ -323,10 +336,16 @@ def resolve_price(text: str) -> PriceResult:
     # есть требование "первый взнос никогда не становится полной ценой".
     if non_full:
         types_found = {mm.price_type for mm in non_full}
-        if "down_payment" in types_found and "monthly_payment" in types_found:
+        # uncertain_variant само по себе не описывает ЧТО это за платёж
+        # (первый взнос/ежемесячный/etc) -- это просто "не доверяй этой
+        # сумме", поэтому не годится как выбираемый chosen_type сам по себе.
+        labelable_types = types_found - {"uncertain_variant"}
+        if "down_payment" in labelable_types and "monthly_payment" in labelable_types:
             chosen_type = "installment"
+        elif labelable_types:
+            chosen_type = sorted(labelable_types)[0]
         else:
-            chosen_type = sorted(types_found)[0]
+            chosen_type = "unknown"
         return PriceResult(price_type=chosen_type, price_confidence="medium",
                             needs_review=True, price_reason="only_partial_price_found",
                             mentions=mentions)

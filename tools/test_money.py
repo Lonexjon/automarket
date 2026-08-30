@@ -71,6 +71,22 @@ class RealProductionLeaks(unittest.TestCase):
         self.assertEqual(r.price_type, "unknown")
         self.assertTrue(r.needs_review)
 
+    def test_variant_price_next_to_installment_is_not_a_confident_price(self):
+        # Реальный прод-баг, найден владельцем в браузере (tg_afdf96e1d5):
+        # "Нархи: Варианта 500$ берса 15 ой 100$ дан беришга" -- сайт
+        # показывал $500 как обычную полную цену без единого предупреждения.
+        # "Варианта" ("как вариант") перед суммой значит, что 500$ -- это
+        # сама схема рассрочки (500 сейчас + 15 месяцев по 100), а не
+        # твёрдая цена машины; unlabeled-кандидат (500$) резолвился
+        # уверенно, хотя рядом стоит явный маркер "это один из вариантов
+        # оплаты", а не факт.
+        r = money.resolve_price(
+            "Нархи: Варианта 500$ берса 15 ой 100$ дан беришга"
+        )
+        self.assertIsNone(r.price_usd)
+        self.assertTrue(r.needs_review)
+        self.assertNotEqual(r.price_type, "full_price")
+
 
 class SpecRequiredCases(unittest.TestCase):
     """Кейсы, явно перечисленные в задании как обязательные к покрытию."""
