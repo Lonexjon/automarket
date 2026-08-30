@@ -5,39 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Объявление — Automarket</title>
   <link rel="stylesheet" href="style.css" />
-  <style>
-    .detail-photo { width: 100%; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; color: var(--text-muted); overflow: hidden; margin-bottom: 16px; }
-    .detail-photo img { width: 100%; height: 100%; object-fit: cover; }
-    .attrs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 16px 0; }
-    .attrs dt { color: var(--text-muted); font-size: 12px; }
-    .attrs dd { margin: 0 0 8px; font-weight: 600; }
-    .segment-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 16px 0; }
-    .flags-list { display: flex; flex-direction: column; gap: 6px; margin: 16px 0; }
-    .flag-item { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
-    .flag-item .src-text { color: var(--text-muted); }
-    .flag-item .src-heuristic { color: var(--text-muted); opacity: 0.7; }
-    .desc-raw { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; font-size: 13px; color: var(--text-muted); }
-    .cta {
-      display: block; text-align: center;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #fff; text-decoration: none; padding: 15px; border-radius: 12px;
-      font-weight: 650; margin: 20px 0; box-shadow: var(--shadow);
-    }
-    .cta:hover { box-shadow: var(--shadow-hover); }
-    .back-link { color: rgba(255,255,255,0.9); text-decoration: none; font-size: 13px; }
-    h1 { font-size: 20px; letter-spacing: -0.01em; margin: 0 0 4px; }
-  </style>
   <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));</script>
 </head>
 <body>
-  <div class="hero">
-    <div class="hero-inner">
+  <header class="topbar topbar-compact">
+    <div class="topbar-row">
       <a class="back-link" href="index.html">← Все объявления</a>
-      <button class="theme-toggle" id="themeToggle">☀️/🌙</button>
+      <button class="icon-btn" id="themeToggle" aria-label="Переключить тему">🌙</button>
     </div>
-  </div>
+  </header>
 
-  <main class="container" id="content" style="margin-top: 20px">
+  <main class="container detail-container" id="content">
     <div class="status-line">Загрузка…</div>
   </main>
 

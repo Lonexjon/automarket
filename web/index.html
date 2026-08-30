@@ -3,49 +3,108 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Automarket — выгодные объявления по машинам в Узбекистане</title>
+  <title>Automarket — честная цена на авто в Узбекистане</title>
+  <meta name="description" content="Собираем объявления о продаже машин и показываем, какие из них реально дешевле рынка — без скрытых накруток и платного AI." />
   <link rel="stylesheet" href="style.css" />
   <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));</script>
 </head>
 <body>
-  <div class="hero">
-    <div class="hero-inner">
-      <div class="brand">
-        <div class="brand-mark">🚗</div>
-        <div>
-          <h1>Automarket</h1>
-          <p id="heroTagline">Собираем объявления и находим цены ниже рынка</p>
-        </div>
-      </div>
-      <button class="theme-toggle" id="themeToggle">☀️/🌙</button>
+  <header class="topbar">
+    <div class="topbar-row">
+      <a class="brand" href="index.html" aria-label="Automarket, на главную">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span class="brand-name">Automarket</span>
+      </a>
+      <button class="icon-btn" id="themeToggle" aria-label="Переключить тему">🌙</button>
     </div>
-  </div>
+    <p class="tagline">Собираем объявления о машинах и честно считаем, какая цена ниже рынка</p>
+    <p class="stats-line" id="statsLine" aria-live="polite"></p>
+  </header>
 
-  <main class="container">
-    <div class="filters">
-      <select id="fBrand"><option value="">Марка: любая</option></select>
-      <select id="fCity"><option value="">Город: любой</option></select>
-      <input id="fPriceMax" type="number" placeholder="Цена до, $" />
-      <select id="fSort">
+  <div class="filter-bar">
+    <div class="filter-bar-inner">
+      <button class="filter-trigger" id="filterToggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="filterSheet">
+        <span>Фильтры</span>
+        <span class="filter-count" id="filterCount" hidden>0</span>
+      </button>
+      <select id="fSort" class="sort-select" aria-label="Сортировка">
         <option value="deal_score_desc">Лучшая цена</option>
         <option value="price_asc">Дешевле</option>
         <option value="price_desc">Дороже</option>
         <option value="posted_at_desc">Свежие</option>
       </select>
     </div>
+  </div>
 
+  <main class="container">
     <div class="status-line" id="statusLine">Загрузка…</div>
     <div class="card-list" id="cardList"></div>
-    <div class="pager" id="pager" style="display:none">
+    <nav class="pager" id="pager" style="display:none" aria-label="Страницы">
       <button id="prevPage">← Назад</button>
       <span id="pageLabel"></span>
       <button id="nextPage">Вперёд →</button>
-    </div>
+    </nav>
 
     <footer class="site-footer">
       Мы не публикуем контакты продавцов и не храним чужие фото — только анализ и ссылка на оригинал.
     </footer>
   </main>
+
+  <div class="sheet-overlay" id="filterOverlay" hidden></div>
+  <div class="filter-sheet" id="filterSheet" role="dialog" aria-modal="true" aria-label="Фильтры" hidden>
+    <div class="filter-sheet-handle" aria-hidden="true"></div>
+    <div class="filter-sheet-head">
+      <h2>Фильтры</h2>
+      <button class="icon-btn" id="closeFilters" aria-label="Закрыть фильтры">✕</button>
+    </div>
+    <div class="filter-sheet-body">
+      <label class="field">
+        <span>Марка</span>
+        <select id="fBrand"><option value="">Любая</option></select>
+      </label>
+      <label class="field">
+        <span>Модель</span>
+        <input id="fModel" type="text" placeholder="например, cobalt" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>Город</span>
+        <select id="fCity"><option value="">Любой</option></select>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Цена от, $</span>
+          <input id="fPriceMin" type="number" min="0" inputmode="numeric" placeholder="0" />
+        </label>
+        <label class="field">
+          <span>Цена до, $</span>
+          <input id="fPriceMax" type="number" min="0" inputmode="numeric" placeholder="∞" />
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Год от</span>
+          <input id="fYearMin" type="number" min="1970" max="2029" inputmode="numeric" placeholder="1970" />
+        </label>
+        <label class="field">
+          <span>Год до</span>
+          <input id="fYearMax" type="number" min="1970" max="2029" inputmode="numeric" placeholder="2026" />
+        </label>
+      </div>
+      <label class="field">
+        <span>Не хуже рынка</span>
+        <select id="fDealMin">
+          <option value="">Любая цена</option>
+          <option value="0.1">Минимум на 10% дешевле рынка</option>
+          <option value="0.2">Минимум на 20% дешевле рынка</option>
+          <option value="0.3">Минимум на 30% дешевле рынка</option>
+        </select>
+      </label>
+    </div>
+    <div class="filter-sheet-foot">
+      <button class="btn-ghost" id="resetFilters">Сбросить</button>
+      <button class="btn-primary" id="applyFilters">Показать</button>
+    </div>
+  </div>
 
   <script src="common.js"></script>
   <script src="app.js"></script>
