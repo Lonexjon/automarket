@@ -132,7 +132,7 @@ function dealTrust(item) {
   // не число -- сравнение со числом здесь было бы всегда false и никогда
   // не срабатывало бы.
   if (item.price_confidence === "low") return { ok: false, reason: "low_confidence" };
-  if ((item.flags || []).some((f) => f.severity === "negative")) return { ok: false, reason: "critical_flag" };
+  if ((item.flags || []).some((f) => CRITICAL_SEVERITIES.has(f.severity))) return { ok: false, reason: "critical_flag" };
   if (item.deal_score === null || item.deal_score === undefined) return { ok: false, reason: "no_segment" };
   if (item.segment_sample_size != null && item.segment_sample_size < MIN_SEGMENT_SIZE) {
     return { ok: false, reason: "small_segment" };
@@ -177,8 +177,14 @@ function dealBadge(item) {
 // Флаги -- визуально разделяем severity, не красим всё одним цветом.
 // ---------------------------------------------------------------------
 
-const FLAG_SEVERITY_CLASS = { info: "flag-info", warning: "flag-warning", negative: "flag-critical" };
-const FLAG_SEVERITY_ORDER = { negative: 0, warning: 1, info: 2 };
+// openapi.yaml объявляет severity как info|warning|negative, но реальный
+// backend (parsers/regex_extract.py, sold_mentioned) шлёт "critical" --
+// контракт устарел относительно кода. Держим оба варианта как алиасы
+// самого высокого уровня, вместо того чтобы чинить это молчаливым
+// провалом в "info" на реальных данных.
+const FLAG_SEVERITY_CLASS = { info: "flag-info", warning: "flag-warning", negative: "flag-critical", critical: "flag-critical" };
+const FLAG_SEVERITY_ORDER = { negative: 0, critical: 0, warning: 1, info: 2 };
+const CRITICAL_SEVERITIES = new Set(["negative", "critical"]);
 const FLAG_SOURCE_LABEL = {
   photo_heuristic: "по фото, предположение",
   price_history: "по истории цены",

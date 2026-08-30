@@ -110,7 +110,7 @@ function flagsList(item) {
     flags.map((f) => {
       const srcNote = FLAG_SOURCE_LABEL[f.source];
       return el("div", { class: `flag-item ${FLAG_SEVERITY_CLASS[f.severity] || "flag-info"}` }, [
-        el("span", { class: "flag-icon" }, f.severity === "negative" ? "⛔" : f.severity === "warning" ? "⚠️" : "ℹ️"),
+        el("span", { class: "flag-icon" }, CRITICAL_SEVERITIES.has(f.severity) ? "⛔" : f.severity === "warning" ? "⚠️" : "ℹ️"),
         el("span", { class: "flag-text" }, f.label || ""),
         srcNote ? el("span", { class: "flag-source" }, `(${srcNote})`) : null,
       ]);
