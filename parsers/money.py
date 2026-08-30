@@ -262,6 +262,20 @@ def find_money_mentions(text: str) -> list[MoneyMention]:
             if best_idx is not None and types[best_idx] == "candidate":
                 types[best_idx] = ptype
 
+    # 3) сумма в скобках сразу после слова, без метки и без маркера --
+    #    реальная утечка на проде (tg_25b655d033, Gentra): "қиммат полик
+    #    (70$)" в середине списка комплектации, где "полик" -- коврики, а
+    #    (70$) -- их цена, не цена машины. Настоящая цена в этом посте была
+    #    вообще без знака валюты ("16,900 ками бор"), поэтому единственным
+    #    money-совпадением оказалась цена коврика -- и резолвилась как
+    #    уверенная полная цена. "Число в скобках без метки/маркера" --
+    #    типичный паттерн аннотации аксессуара/детали, а не объявления
+    #    цены машины, поэтому такие кандидаты не доверяем (needs_review),
+    #    а не молча принимаем как есть.
+    for idx, (start, end, value, currency) in enumerate(spans):
+        if types[idx] == "candidate" and start > 0 and end < len(norm) and norm[start - 1] == "(" and norm[end] == ")":
+            types[idx] = "uncertain_variant"
+
     return [
         MoneyMention(value, currency, types[idx], start, end, norm[start:end])
         for idx, (start, end, value, currency) in enumerate(spans)

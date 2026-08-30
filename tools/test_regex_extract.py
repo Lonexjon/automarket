@@ -35,6 +35,49 @@ class TryExtractRealCases(unittest.TestCase):
         d = rx.try_extract("2012 yil Nexia2 40 mlnga baraka bo'pti tabriklaymiz")
         self.assertIsNone(d)
 
+    def test_rental_ad_is_dropped_entirely(self):
+        # Реальные прод-баги, найдены владельцем в браузере: "Матиз Арендага
+        # берилади", "Дамас Арендага берилади", "Нексия 3 Арендага
+        # берилади" -- это объявления об АРЕНДЕ, не о продаже. Депозит и
+        # посуточная ставка ("Нархи: 300$ залог бор толов олдиндан")
+        # раньше становились price_usd, будто это честная цена продажи
+        # машины. Сайт про продажу, у аренды нет "цены покупки" как
+        # понятия -- try_extract должен пропускать такие посты целиком, а
+        # не пытаться выдумать им цену.
+        for text in [
+            "Дамас Арендага берилади! Йили- 2026 Кунига 100 мингдан "
+            "200$ залог бор Тел: +998957172111",
+            "Нексия 3 Арендага берилади Йили- 2018/2019 Нархи- 300$ "
+            "залок бор толов олдиндан Тел: +998907967575",
+        ]:
+            with self.subTest(text=text):
+                self.assertIsNone(rx.try_extract(text))
+
+    def test_normal_sale_ad_not_mistaken_for_rental(self):
+        # "не в аренде/такси" в тексте не должно ложно исключать обычное
+        # объявление о продаже -- RENTAL_RE требует пару "аренда"+"берилади"
+        # ("сдаётся"), не голое слово "аренда".
+        d = rx.try_extract(
+            "#Cobalt 2019 yil, taksida yoki arendada bo'lmagan, shaxsiy, "
+            "Narxi: 9500$ | Tel: +998901234567"
+        )
+        self.assertIsNotNone(d)
+        self.assertEqual(d["price_usd"], 9500.0)
+
+    def test_accessory_price_in_parentheses_never_becomes_car_price(self):
+        # Реальный прод-баг (tg_25b655d033, Gentra): "— қиммат полик (70$)"
+        # -- цена ковриков в списке комплектации, "16,900 ками бор" (без
+        # знака валюты) -- настоящая цена машины. Сайт показывал $70 как
+        # честную цену идеальной Gentra 2023 года. Число в скобках без
+        # метки "Нархи:" не должно резолвиться как уверенная цена машины.
+        d = rx.try_extract(
+            "#Gentra 3-позиция Full Tuning қилинган сотилади!\nЙили: 2023\n"
+            "— қиммат полик (70$)\n16,900 ками бор\n+998331989999"
+        )
+        self.assertIsNotNone(d)  # марка+год есть, объявление сохраняется
+        self.assertIsNone(d["price_usd"])
+        self.assertNotEqual(d["price_type"], "full_price")
+
     def test_real_ad_with_later_sold_addendum_is_kept_and_flagged(self):
         text = "#Cobalt 2019 yil Narxi: 9500$ | Tel: #Sotildi 9200$"
         d = rx.try_extract(text)

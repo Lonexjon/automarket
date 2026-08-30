@@ -87,6 +87,22 @@ class RealProductionLeaks(unittest.TestCase):
         self.assertTrue(r.needs_review)
         self.assertNotEqual(r.price_type, "full_price")
 
+    def test_parenthesized_accessory_price_not_a_confident_car_price(self):
+        # Реальный прод-баг (tg_25b655d033, Gentra): "— қиммат полик (70$)"
+        # -- цена ковриков в списке комплектации, без метки "Нархи:" и без
+        # какого-либо маркера. Единственная непомеченная сумма в скобках
+        # резолвилась как уверенная полная цена машины ($70 для Gentra 2023).
+        r = money.resolve_price("— қиммат полик (70$)\n16,900 ками бор")
+        self.assertIsNone(r.price_usd)
+        self.assertNotEqual(r.price_type, "full_price")
+
+    def test_labeled_price_in_parentheses_still_trusted(self):
+        # Скобки сами по себе не должны обесценивать ЯВНО помеченную цену --
+        # "Нархи: (8700$)" всё ещё однозначная метка прямо перед числом.
+        r = money.resolve_price("Нархи: (8700$)")
+        self.assertEqual(r.price_usd, 8700.0)
+        self.assertEqual(r.price_type, "full_price")
+
 
 class SpecRequiredCases(unittest.TestCase):
     """Кейсы, явно перечисленные в задании как обязательные к покрытию."""
