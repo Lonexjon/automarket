@@ -53,6 +53,21 @@ class TryExtractRealCases(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNone(rx.try_extract(text))
 
+    def test_rental_wanted_hashtag_post_is_dropped_entirely(self):
+        # Реальные прод-данные (владелец попросил проверить базу шире):
+        # "#Arendaga Нексия 3 Автомат оламан❗️" -- это пост "ИЩУ машину в
+        # аренду" ("оламан" = "возьму"), канал сам маркирует его хэштегом
+        # #Arendaga. Не объявление о продаже вообще (и не "сдаётся", как в
+        # test_rental_ad_is_dropped_entirely -- обратный смысл, но та же
+        # категория: нет цены покупки, не место в маркетплейсе продажи).
+        for text in [
+            "#Arendaga Нексия 3 Автомат оламан❗️ Аёл киши минади, "
+            "Узокрок муддатга мингани, Нархини келишамиз",
+            "#Arendaga Лабо оламан❗️ Тел: +998882711144",
+        ]:
+            with self.subTest(text=text):
+                self.assertIsNone(rx.try_extract(text))
+
     def test_normal_sale_ad_not_mistaken_for_rental(self):
         # "не в аренде/такси" в тексте не должно ложно исключать обычное
         # объявление о продаже -- RENTAL_RE требует пару "аренда"+"берилади"
