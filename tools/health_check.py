@@ -165,10 +165,12 @@ def check(con: sqlite3.Connection) -> list[dict]:
     if unmigrated:
         warn(f"Объявлений без price_type (нужен tools/reprocess_prices.py): {unmigrated} штук")
 
-    # 12. sold_mentioned объявления без removed_at -- информационно: они
-    # физически ещё показываются как активные (никто их не скрывает
-    # автоматически), но уже отмечены проданными. Не critical -- фронтенд
-    # решает, показывать ли их (по флагу), это не искажение данных самих по себе.
+    # 12. sold_mentioned объявления без removed_at -- по решению владельца
+    # такие объявления скрываются автоматически (regex_extract.py ставит
+    # removed_at сразу при вставке, tools/hide_sold_listings.py -- backfill
+    # для уже накопленных). Этот счётчик в норме должен быть 0 или близко к
+    # нулю; ненулевое значение значит, что hide_sold_listings.py давно не
+    # запускался. Warning, не critical -- не искажение данных самих по себе.
     sold_active = con.execute(
         "SELECT COUNT(*) FROM listings WHERE flags LIKE '%sold_mentioned%' AND removed_at IS NULL AND duplicate_of IS NULL"
     ).fetchone()[0]

@@ -419,6 +419,14 @@ def main(limit: int | None):
         source_url = f"https://t.me/{channel}/{message_id}"
 
         flags = detect_flags(text)
+        # Объявление со структурными полями, к которому позже дописали
+        # "продано" (sold_mentioned) -- мы всё ещё сохраняем его (цена и
+        # данные полезны для медианы сегмента и истории), но по решению
+        # владельца больше не показываем в живой ленте: покупателю
+        # неактуальное "продано" объявление не нужно. Ставим removed_at
+        # сразу при вставке, а не только флаг -- чтобы новые такие
+        # объявления не нужно было чистить отдельным прогоном.
+        removed_at = now if any(f["code"] == "sold_mentioned" for f in flags) else None
 
         con.execute(
             """INSERT INTO listings (
@@ -426,8 +434,8 @@ def main(limit: int | None):
                 price_usd, price_uzs, price_type, price_confidence, needs_review, price_reason,
                 city, brand, model, year, mileage_km,
                 transmission, description_raw, flags, phone_hash,
-                posted_at, first_seen_at, last_seen_at
-            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                posted_at, first_seen_at, last_seen_at, removed_at
+            ) VALUES (?, 'telegram', ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO NOTHING""",
             (
                 listing_id, source_id, source_url,
@@ -436,7 +444,7 @@ def main(limit: int | None):
                 data["price_confidence"], int(data["needs_review"]), data["price_reason"],
                 data["city"], data["brand"], data["model"], data["year"], data["mileage_km"],
                 data["transmission"], text, json.dumps(flags, ensure_ascii=False) if flags else None,
-                phone_hash(data["phone"]), posted_at, now, now,
+                phone_hash(data["phone"]), posted_at, now, now, removed_at,
             ),
         )
         con.commit()

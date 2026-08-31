@@ -8,11 +8,14 @@ is_pure_sold_confirmation) -- уровень выше money.py: здесь пр�
   python3 -m unittest tools/test_regex_extract.py
 """
 import os
+import sqlite3
 import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "parsers"))
 import regex_extract as rx  # noqa: E402
+
+ROOT = os.path.join(os.path.dirname(__file__), "..")
 
 
 class TryExtractRealCases(unittest.TestCase):
@@ -155,6 +158,72 @@ class NegationCases(unittest.TestCase):
         # раннего пуша (см. docs/PROJECT_OVERVIEW.md, найдено и починено).
         flags = {f["code"] for f in rx.detect_flags("рама бўялган, кузов тоза")}
         self.assertIn("painted_mentioned", flags)
+
+
+class SoldMentionedAutoHide(unittest.TestCase):
+    """По решению владельца объявления с флагом sold_mentioned (структурный
+    пост, к которому позже дописали "продано") скрываются автоматически --
+    main() должен ставить removed_at сразу при вставке, не только флаг."""
+
+    def setUp(self):
+        self.db_path = "/tmp/claude_test_regex_extract.db"
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        self.orig_db_path = rx.DB_PATH
+        rx.DB_PATH = self.db_path
+
+    def tearDown(self):
+        rx.DB_PATH = self.orig_db_path
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+
+    def _seed_raw(self, channel, message_id, text):
+        con = sqlite3.connect(self.db_path)
+        con.execute(
+            """CREATE TABLE IF NOT EXISTS telegram_raw (
+                channel TEXT NOT NULL, message_id INTEGER NOT NULL, posted_at TEXT,
+                text TEXT, has_photo INTEGER, has_video INTEGER, fetched_at TEXT NOT NULL,
+                PRIMARY KEY (channel, message_id))"""
+        )
+        con.execute(
+            "INSERT INTO telegram_raw (channel, message_id, posted_at, text, fetched_at) "
+            "VALUES (?, ?, '2026-01-01', ?, '2026-01-01')",
+            (channel, message_id, text),
+        )
+        con.commit()
+        con.close()
+
+    def test_sold_addendum_ad_gets_removed_at_on_insert(self):
+        self._seed_raw(
+            "chan1", 1,
+            "#Cobalt 2019 yil Narxi: 9500$ | Tel: #Sotildi 9200$",
+        )
+        rx.main(limit=None)
+
+        con = sqlite3.connect(self.db_path)
+        row = con.execute(
+            "SELECT price_usd, removed_at FROM listings WHERE source_id = 'chan1:1'"
+        ).fetchone()
+        con.close()
+        self.assertIsNotNone(row)
+        price_usd, removed_at = row
+        self.assertEqual(price_usd, 9500.0)  # цена всё ещё сохранена (для медианы/истории)
+        self.assertIsNotNone(removed_at)  # но объявление скрыто из живой ленты
+
+    def test_normal_ad_without_sold_tag_stays_visible(self):
+        self._seed_raw(
+            "chan1", 2,
+            "#Nexia 3 2018 yil Narxi: 8700$ | Tel: +998901234567",
+        )
+        rx.main(limit=None)
+
+        con = sqlite3.connect(self.db_path)
+        row = con.execute(
+            "SELECT removed_at FROM listings WHERE source_id = 'chan1:2'"
+        ).fetchone()
+        con.close()
+        self.assertIsNotNone(row)
+        self.assertIsNone(row[0])
 
 
 class SoldConfirmationDetection(unittest.TestCase):
