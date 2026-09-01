@@ -144,6 +144,14 @@ def main(json_path: str):
         flags = rx.detect_flags(description_raw) if description_raw else []
         price_fields = resolve_price_fields(item)
 
+        # Наблюдалось на реальной первой партии (2026-09-01): часть страниц
+        # Avtoelon отдаёт другую вёрстку карточки (10 из 40 в первой партии --
+        # ни title, ни атрибутов, только цена/город/год), парсер их недобирает.
+        # Без title карточка на сайте рендерится пустой -- прячем сразу тем же
+        # removed_at, каким уже прячутся sold_mentioned (см. regex_extract.py),
+        # а не показываем пользователю сломанную плитку.
+        removed_at = now if not title else None
+
         listing_id = f"{source}_{uuid.uuid4().hex[:10]}"
         cur = con.execute(
             """INSERT INTO listings (
@@ -152,8 +160,8 @@ def main(json_path: str):
                 price_type, price_confidence, needs_review, price_reason,
                 city, brand, model, year, mileage_km, transmission,
                 description_raw, photo_urls, flags,
-                posted_at, first_seen_at, last_seen_at
-            ) VALUES (?, ?, ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                posted_at, first_seen_at, last_seen_at, removed_at
+            ) VALUES (?, ?, ?, ?, 'cars', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO NOTHING""",
             (
                 listing_id, source, source_id, item.get("source_url", ""),
@@ -166,7 +174,7 @@ def main(json_path: str):
                 description_raw or None,
                 json.dumps(item.get("photo_urls") or [], ensure_ascii=False) or None,
                 json.dumps(flags, ensure_ascii=False) if flags else None,
-                parse_posted_at(item.get("posted_at"), collected_at), now, now,
+                parse_posted_at(item.get("posted_at"), collected_at), now, now, removed_at,
             ),
         )
         if cur.rowcount:
