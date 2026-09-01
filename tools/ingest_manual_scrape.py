@@ -41,15 +41,33 @@ RU_MONTHS = {
     "июля": 7, "августа": 8, "сентября": 9, "октября": 10, "ноября": 11, "декабря": 12,
 }
 RU_DATE_RE = re.compile(r"(\d{1,2})\s+([а-яё]+)\s+(\d{4})", re.I)
+RELATIVE_TIME_RE = re.compile(r"(сегодня|вчера)\s+в\s+(\d{1,2}):(\d{2})", re.I)
 
 
-def parse_posted_at(raw: str | None) -> str | None:
-    """"31 августа 2026 г." -> ISO. Не гадаем формат -- если не совпало,
-    просто NULL, а не мусорная строка, которую фронт не сможет разобрать
-    (new Date() на нераспознанной строке даёт Invalid Date)."""
+def parse_posted_at(raw: str | None, collected_at: str) -> str | None:
+    """"31 августа 2026 г." -> ISO. "сегодня в 13:45" / "вчера в 13:45" --
+    большинство свежих OLX-объявлений размечены именно так (не полной датой),
+    отсчитываем от даты сбора (collected_at), а не от текущего времени сервера
+    -- сбор и заливка могут разойтись по дню. Не гадаем формат дальше этого --
+    если не совпало, просто NULL, а не мусорная строка, которую фронт не
+    сможет разобрать (new Date() на нераспознанной строке даёт Invalid Date)."""
     if not raw:
         return None
-    m = RU_DATE_RE.search(raw.lower())
+    raw_low = raw.lower()
+
+    rel = RELATIVE_TIME_RE.search(raw_low)
+    if rel:
+        word, hour, minute = rel.groups()
+        base = datetime.fromisoformat(collected_at)
+        if word == "вчера":
+            from datetime import timedelta
+            base -= timedelta(days=1)
+        try:
+            return base.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0).isoformat()
+        except ValueError:
+            return None
+
+    m = RU_DATE_RE.search(raw_low)
     if not m:
         return None
     day, month_name, year = m.groups()
@@ -105,6 +123,7 @@ def main(json_path: str):
     with open(json_path, encoding="utf-8") as f:
         payload = json.load(f)
     items = payload.get("items", payload if isinstance(payload, list) else [])
+    collected_at = payload.get("collected_at") or datetime.now(timezone.utc).isoformat()
 
     con = sqlite3.connect(DB_PATH)
     rx.ensure_schema(con)
@@ -147,7 +166,7 @@ def main(json_path: str):
                 description_raw or None,
                 json.dumps(item.get("photo_urls") or [], ensure_ascii=False) or None,
                 json.dumps(flags, ensure_ascii=False) if flags else None,
-                parse_posted_at(item.get("posted_at")), now, now,
+                parse_posted_at(item.get("posted_at"), collected_at), now, now,
             ),
         )
         if cur.rowcount:
